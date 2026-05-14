@@ -1,0 +1,5377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>主播数据环比中心</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+  // docx.js 加载（带备用 CDN）
+  (function() {
+    const cdns = [
+      'https://unpkg.com/docx@8.5.0/build/index.umd.js',
+      'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/index.umd.min.js'
+    ];
+    let i = 0;
+    function load() {
+      if (i >= cdns.length) {
+        console.warn('docx.js 全部 CDN 加载失败，Word 导出功能不可用');
+        return;
+      }
+      const s = document.createElement('script');
+      s.src = cdns[i];
+      s.onerror = () => { i++; load(); };
+      document.head.appendChild(s);
+    }
+    load();
+  })();
+</script>
+<style>
+:root {
+  --bg-0: #0a0e14;
+  --bg-1: #0f1419;
+  --bg-2: #161b22;
+  --bg-3: #1f2630;
+  --bg-4: #2a3441;
+  --border: #232b35;
+  --border-strong: #2d3742;
+  --text-0: #e6edf3;
+  --text-1: #9ba8b8;
+  --text-2: #6e7a8a;
+  --text-3: #4a5566;
+  --accent: #ffb454;
+  --up: #3fb950;
+  --up-bg: rgba(63, 185, 80, 0.12);
+  --down: #f85149;
+  --down-bg: rgba(248, 81, 73, 0.12);
+  --warn: #f0883e;
+  --warn-bg: rgba(240, 136, 62, 0.12);
+  --neutral: #58a6ff;
+  --neutral-bg: rgba(88, 166, 255, 0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(255, 180, 84, 0.06), transparent),
+    radial-gradient(ellipse 50% 30% at 80% 10%, rgba(88, 166, 255, 0.04), transparent);
+}
+
+/* ===== 顶部导航 ===== */
+.topbar {
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  background: rgba(15, 20, 25, 0.85);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-0);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-left: 32px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-1);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+  white-space: nowrap;
+  position: relative;
+}
+
+.tab:hover { color: var(--text-0); background: var(--bg-2); }
+.tab.active { color: var(--text-0); background: var(--bg-3); }
+
+.tab .badge {
+  display: inline-block;
+  margin-left: 6px;
+  background: var(--down);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+}
+.tab .badge.warn { background: var(--warn); }
+.tab .badge.hidden { display: none; }
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ===== 主内容 ===== */
+.container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.3s; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== 警告/提醒条 ===== */
+.alert-bar {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.alert-bar.danger {
+  background: var(--down-bg);
+  border-color: var(--down);
+}
+
+.alert-bar-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.alert-bar-text { flex: 1; color: var(--text-0); }
+.alert-bar-text strong { color: var(--text-0); }
+
+/* ===== 控制栏 ===== */
+.control-bar {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control-label {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+select, input[type="date"], input[type="text"], input[type="number"], textarea {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-0);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 140px;
+}
+
+select:focus, input:focus, textarea:focus { border-color: var(--accent); }
+select { cursor: pointer; }
+
+textarea { min-width: 0; resize: vertical; line-height: 1.5; }
+
+.btn {
+  background: var(--accent);
+  color: #1a1106;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(255, 180, 84, 0.25); }
+.btn:active { transform: translateY(0); }
+
+.btn-ghost {
+  background: var(--bg-2);
+  color: var(--text-0);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--bg-3); box-shadow: none; }
+
+.btn-danger { background: var(--down); color: white; }
+.btn-danger:hover { box-shadow: 0 4px 12px rgba(248, 81, 73, 0.3); }
+
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+
+/* ===== 指标卡片网格 ===== */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.metric-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.metric-card:hover { border-color: var(--border-strong); }
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--neutral);
+}
+
+.metric-card.up::before { background: var(--up); }
+.metric-card.down::before { background: var(--down); }
+.metric-card.alert::before { background: var(--down); box-shadow: 0 0 12px var(--down); }
+.metric-card.neutral::before { background: var(--text-3); }
+
+.metric-card.alert {
+  background: linear-gradient(180deg, rgba(248, 81, 73, 0.04), var(--bg-1));
+}
+
+.metric-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.metric-name {
+  font-size: 12px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.metric-alert-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--down-bg);
+  color: var(--down);
+  letter-spacing: 0.05em;
+}
+
+.metric-alert-tag.warn { background: var(--warn-bg); color: var(--warn); }
+
+.metric-value {
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-0);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+  line-height: 1.1;
+}
+
+.metric-prev {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 10px;
+}
+
+.metric-prev .num {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-1);
+}
+
+.metric-change {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.change-up { color: var(--up); }
+.change-down { color: var(--down); }
+.change-neutral { color: var(--text-2); }
+
+.change-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.change-icon.up { background: var(--up-bg); }
+.change-icon.down { background: var(--down-bg); }
+.change-icon.neutral { background: var(--bg-3); }
+
+/* 迷你折线图 */
+.spark-wrap {
+  height: 40px;
+  margin-top: 8px;
+}
+
+.spark-wrap svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ===== 表格 ===== */
+.table-wrap {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.table-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.table-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.table-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.table-scroll { overflow-x: auto; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-2);
+  font-weight: 600;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+th.num { text-align: right; }
+
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-0);
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--bg-2); }
+
+td.num {
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+td.label { color: var(--text-1); font-weight: 500; }
+td.metric-cell { font-weight: 600; color: var(--text-0); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.pill.up { background: var(--up-bg); color: var(--up); }
+.pill.down { background: var(--down-bg); color: var(--down); }
+.pill.neutral { background: var(--bg-3); color: var(--text-2); }
+.pill.warn { background: var(--warn-bg); color: var(--warn); }
+
+.pct-cell {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.pct-cell.up { color: var(--up); }
+.pct-cell.down { color: var(--down); }
+.pct-cell.neutral { color: var(--text-2); }
+
+.flame-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--down-bg);
+  color: var(--down);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ===== 健康度评分 ===== */
+.health-score {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.health-score-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 48px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.health-score-num.excellent { color: var(--up); }
+.health-score-num.good { color: var(--neutral); }
+.health-score-num.warn { color: var(--warn); }
+.health-score-num.bad { color: var(--down); }
+
+.health-info { flex: 1; }
+.health-label {
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.health-status {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.health-detail {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ===== 复盘卡片 ===== */
+.review-section { margin-top: 24px; }
+
+.review-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.review-title {
+  font-size: 15px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.review-title::before {
+  content: '';
+  width: 4px;
+  height: 16px;
+  background: var(--down);
+  border-radius: 2px;
+}
+
+.review-count {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 12px;
+}
+
+.review-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--down);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.review-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+
+.review-metric-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.review-pct {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--down);
+  letter-spacing: -0.01em;
+}
+
+.review-detail {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+  margin-bottom: 12px;
+}
+
+.review-detail .arrow { color: var(--text-1); margin: 0 6px; }
+
+.review-textarea {
+  width: 100%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: var(--text-0);
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 64px;
+  outline: none;
+  transition: border-color 0.15s;
+  line-height: 1.5;
+}
+
+.review-textarea::placeholder { color: var(--text-2); }
+.review-textarea:focus { border-color: var(--accent); }
+
+.review-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  gap: 12px;
+}
+
+.review-status {
+  display: flex;
+  gap: 6px;
+}
+
+.status-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.status-btn:hover { border-color: var(--border-strong); color: var(--text-0); }
+
+.status-btn.active.todo {
+  background: var(--warn-bg);
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.status-btn.active.doing {
+  background: var(--neutral-bg);
+  color: var(--neutral);
+  border-color: var(--neutral);
+}
+.status-btn.active.done {
+  background: var(--up-bg);
+  color: var(--up);
+  border-color: var(--up);
+}
+
+.review-saved-tag {
+  font-size: 11px;
+  color: var(--up);
+  font-family: 'JetBrains Mono', monospace;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.review-saved-tag.show { opacity: 1; }
+
+.review-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--up);
+  font-size: 13px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.review-empty::before {
+  content: '✓ ';
+  font-weight: 700;
+}
+
+/* ===== 录入表单 ===== */
+.input-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.input-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+.section {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-subtitle {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 20px;
+}
+
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg-3);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  z-index: 200;
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.2s;
+  pointer-events: none;
+}
+
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { border-left: 3px solid var(--up); }
+.toast.error { border-left: 3px solid var(--down); }
+
+/* ===== Modal 对话框 ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.modal-overlay.show {
+  display: flex;
+  animation: fadeIn 0.15s;
+}
+
+.modal {
+  background: var(--bg-1);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.modal-title {
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text-0);
+}
+
+.modal-subtitle {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 20px;
+}
+
+.modal-field {
+  margin-bottom: 16px;
+}
+
+.modal-field label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.modal-field input, .modal-field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* ===== 主播管理 ===== */
+.anchor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.anchor-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.anchor-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.anchor-platform {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 2px 8px;
+  background: var(--bg-3);
+  border-radius: 4px;
+}
+
+.anchor-actions { margin-left: auto; display: flex; gap: 8px; }
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-1);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.icon-btn:hover { color: var(--down); border-color: var(--down); }
+
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 24px 0;
+}
+
+.compare-row td:first-child { font-weight: 600; }
+
+/* ===== 批量录入 ===== */
+.bulk-table {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bulk-table table { width: 100%; }
+.bulk-table th { background: var(--bg-2); }
+.bulk-table td { padding: 8px 12px; }
+.bulk-table input[type="number"] {
+  width: 100%;
+  min-width: 80px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--bg-2);
+}
+.bulk-table input[type="text"] {
+  width: 100%;
+  min-width: 120px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-2);
+}
+
+/* ===== 设置面板 ===== */
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child { border-bottom: none; }
+
+.settings-label {
+  font-size: 13px;
+  color: var(--text-0);
+  font-weight: 500;
+}
+.settings-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-top: 2px;
+}
+
+.settings-row input[type="number"] {
+  width: 100px;
+  min-width: 80px;
+}
+
+/* ===== 用户菜单 ===== */
+.btn-menu-item {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; cursor: pointer;
+  padding: 9px 16px; font-size: 13px; color: var(--text-0);
+  transition: background .12s;
+}
+.btn-menu-item:hover { background: var(--bg-2); }
+
+/* ===== 卡片墙 ===== */
+.anchor-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 14px;
+  padding: 4px 0 20px;
+}
+.anchor-wall-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  cursor: pointer;
+  transition: border-color .15s, transform .12s;
+}
+.anchor-wall-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.anchor-wall-card .wall-score {
+  font-size: 32px; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+/* ===== 趋势图区 ===== */
+.trend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 16px;
+}
+@media (max-width: 800px) { .trend-grid { grid-template-columns: repeat(2, 1fr); } }
+.trend-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+.trend-card .spark-wrap { height: 54px; margin: 6px 0 4px; }
+.trend-card .spark-wrap svg { width: 100%; height: 100%; }
+
+/* ===== 预警下拉 ===== */
+.bell-item {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.bell-item:last-child { border-bottom: none; }
+.bell-item-anchor { font-weight: 600; color: var(--text-0); }
+.bell-item-meta { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+
+/* ===== 粘贴导入 ===== */
+.paste-area {
+  width: 100%;
+  min-height: 160px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  background: var(--bg-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  padding: 12px;
+  color: var(--text-0);
+}
+
+.paste-preview {
+  margin-top: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.paste-preview table { font-size: 12px; }
+.paste-preview th, .paste-preview td { padding: 6px 10px; }
+
+/* ===== 复盘汇总 ===== */
+.review-list-item {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--down);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.review-list-item.status-doing { border-left-color: var(--neutral); }
+.review-list-item.status-done { border-left-color: var(--up); }
+
+.review-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.review-list-meta {
+  font-size: 12px;
+  color: var(--text-2);
+  font-family: 'JetBrains Mono', monospace;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.review-list-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.review-list-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.review-list-status.todo { background: var(--warn-bg); color: var(--warn); }
+.review-list-status.doing { background: var(--neutral-bg); color: var(--neutral); }
+.review-list-status.done { background: var(--up-bg); color: var(--up); }
+
+.review-list-text {
+  font-size: 13px;
+  color: var(--text-0);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  padding: 10px 12px;
+  background: var(--bg-2);
+  border-radius: 6px;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.filter-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-1);
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.filter-chip:hover { color: var(--text-0); border-color: var(--border-strong); }
+.filter-chip.active { background: var(--accent); color: #1a1106; border-color: var(--accent); }
+
+.stat-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--bg-2);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-1);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.note-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  margin-left: 8px;
+  font-size: 11px;
+  background: var(--bg-3);
+  border-radius: 3px;
+  color: var(--text-1);
+  font-weight: 400;
+  font-family: inherit;
+}
+
+.note-tag::before { content: '💬 '; }
+
+/* tooltip */
+[data-tip] {
+  position: relative;
+  cursor: help;
+}
+[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  background: var(--bg-4);
+  color: var(--text-0);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  z-index: 50;
+  border: 1px solid var(--border-strong);
+  max-width: 280px;
+  text-align: left;
+  font-weight: 400;
+  line-height: 1.4;
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">STREAMER&nbsp;METRICS</div>
+  <div class="tabs">
+    <div class="tab active" data-tab="dashboard">总览</div>
+    <div class="tab" data-tab="entry">数据录入</div>
+    <div class="tab" data-tab="bulk">批量录入</div>
+    <div class="tab" data-tab="paste">粘贴导入</div>
+    <div class="tab" data-tab="daily">日环比</div>
+    <div class="tab" data-tab="weekly">周环比</div>
+    <div class="tab" data-tab="compare">主播对比</div>
+    <div class="tab" data-tab="reviews">复盘汇总<span class="badge hidden" id="tab-review-badge">0</span></div>
+    <div class="tab" data-tab="anchors">主播管理</div>
+    <div class="tab" data-tab="settings">设置</div>
+  </div>
+  <div class="topbar-right">
+    <div style="position:relative; margin-right:12px;">
+      <button id="alert-bell-btn" title="今日预警" style="background:none;border:none;cursor:pointer;color:var(--text-1);font-size:16px;padding:4px 8px;border-radius:6px;position:relative;transition:color .15s;">
+        🔔<span id="alert-bell-badge" class="badge hidden" style="position:absolute;top:-2px;right:-2px;min-width:16px;height:16px;line-height:16px;font-size:10px;">0</span>
+      </button>
+      <div id="alert-bell-dropdown" style="display:none;position:absolute;top:calc(100% + 8px);right:0;width:320px;max-height:400px;overflow-y:auto;background:var(--bg-1);border:1px solid var(--border-strong);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.4);z-index:300;padding:12px 0;"></div>
+    </div>
+    <span id="today-label">--</span>
+    <div style="position:relative; margin-left:12px;">
+      <button id="user-menu-btn" style="background:var(--bg-2);border:1px solid var(--border);
+        border-radius:20px;padding:4px 12px 4px 8px;cursor:pointer;display:flex;align-items:center;
+        gap:6px;color:var(--text-0);font-size:13px;">
+        <span style="font-size:15px;">👤</span>
+        <span id="user-display-name" style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">--</span>
+        <span id="user-role-badge" style="font-size:10px;padding:1px 6px;border-radius:4px;
+          background:rgba(255,180,84,.15);color:var(--accent);display:none;"></span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 登录界面 ============ -->
+<div id="login-screen" style="display:none; position:fixed; inset:0; z-index:9999;
+  background:var(--bg-0); align-items:center; justify-content:center; flex-direction:column;">
+  <div style="width:360px; max-width:92vw;">
+    <div style="text-align:center; margin-bottom:32px;">
+      <div style="font-size:28px; margin-bottom:8px;">📊</div>
+      <div style="font-size:20px; font-weight:700; color:var(--text-0);">主播数据环比中心</div>
+      <div style="font-size:13px; color:var(--text-2); margin-top:4px;">请登录后继续</div>
+    </div>
+    <div id="login-error" style="display:none; padding:10px 14px; background:rgba(248,81,73,.12);
+      border:1px solid var(--down); border-radius:8px; color:var(--down); font-size:13px; margin-bottom:16px;"></div>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <input id="login-email" type="email" placeholder="邮箱"
+        style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;
+        padding:11px 14px;color:var(--text-0);font-size:14px;outline:none;width:100%;box-sizing:border-box;">
+      <input id="login-password" type="password" placeholder="密码"
+        style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;
+        padding:11px 14px;color:var(--text-0);font-size:14px;outline:none;width:100%;box-sizing:border-box;">
+      <button id="login-btn" class="btn" style="padding:11px; font-size:14px; width:100%;">登录</button>
+    </div>
+    <div style="text-align:center; margin-top:16px;">
+      <span style="font-size:13px; color:var(--text-2);">没有账号？</span>
+      <button id="show-register-btn" style="background:none;border:none;cursor:pointer;
+        color:var(--accent);font-size:13px;padding:0 4px;">申请注册</button>
+    </div>
+  </div>
+</div>
+
+<!-- 注册 Modal -->
+<div id="register-modal" style="display:none; position:fixed; inset:0; z-index:10000;
+  background:rgba(0,0,0,.6); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
+  <div style="background:var(--bg-1);border:1px solid var(--border-strong);border-radius:16px;
+    padding:28px 32px;width:380px;max-width:92vw;display:flex;flex-direction:column;gap:14px;">
+    <div style="font-size:16px;font-weight:700;">注册账号</div>
+    <div style="font-size:13px;color:var(--text-2);">注册后默认为「运营」权限，需管理员在用户管理中升级。</div>
+    <div id="register-error" style="display:none;padding:8px 12px;background:rgba(248,81,73,.12);
+      border:1px solid var(--down);border-radius:6px;color:var(--down);font-size:12px;"></div>
+    <input id="reg-name" type="text" placeholder="显示名称（如：张三）"
+      style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text-0);font-size:13px;outline:none;">
+    <input id="reg-email" type="email" placeholder="邮箱"
+      style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text-0);font-size:13px;outline:none;">
+    <input id="reg-password" type="password" placeholder="密码（至少 6 位）"
+      style="background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text-0);font-size:13px;outline:none;">
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" id="reg-cancel">取消</button>
+      <button class="btn" id="reg-submit">注册</button>
+    </div>
+  </div>
+</div>
+
+<!-- 用户下拉菜单 -->
+<div id="user-dropdown" style="display:none;position:fixed;top:52px;right:16px;z-index:400;
+  background:var(--bg-1);border:1px solid var(--border-strong);border-radius:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);min-width:200px;padding:8px 0;">
+  <div id="user-info-row" style="padding:10px 16px;border-bottom:1px solid var(--border);
+    font-size:13px;color:var(--text-1);"></div>
+  <div id="admin-panel-link" style="display:none;">
+    <button class="btn-menu-item" id="open-admin-panel-btn">🛡️ 用户管理</button>
+  </div>
+  <button class="btn-menu-item" id="logout-btn">🚪 退出登录</button>
+</div>
+
+<!-- 管理员用户管理面板 -->
+<div id="admin-panel" style="display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--bg-1);border:1px solid var(--border-strong);border-radius:16px;
+    padding:28px 32px;width:580px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;gap:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-size:16px;font-weight:700;">🛡️ 用户管理</div>
+      <button class="modal-close" id="close-admin-panel-btn">✕</button>
+    </div>
+    <div style="font-size:13px;color:var(--text-2);">升级/降级用户权限。管理员可管理主播、经纪人和系统设置。</div>
+    <div id="admin-user-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;max-height:400px;"></div>
+  </div>
+</div>
+
+<div id="main-app" style="display:none;">
+<div class="container">
+
+  <!-- ============ 总览 ============ -->
+  <div class="page active" id="page-dashboard">
+    <div id="missing-alert"></div>
+    <div id="dash-status-alert"></div>
+
+    <div class="control-bar">
+      <div class="control">
+        <span class="control-label">经纪人</span>
+        <select id="dash-broker-filter">
+          <option value="all">所有经纪人</option>
+        </select>
+      </div>
+      <div class="control">
+        <span class="control-label">主播</span>
+        <select id="dash-anchor"></select>
+      </div>
+      <div class="control">
+        <span class="control-label">对比维度</span>
+        <select id="dash-period">
+          <option value="dod">日环比 (D-1)</option>
+          <option value="wow">周环比 (W-1)</option>
+        </select>
+      </div>
+      <div class="control" id="dash-date-control">
+        <span class="control-label">基准日期</span>
+        <input type="date" id="dash-date">
+      </div>
+      <div class="control" id="dash-week-control" style="display:none;">
+        <span class="control-label">选择周</span>
+        <input type="week" id="dash-week" style="min-width:160px;">
+      </div>
+      <div class="control" id="dash-quick-control" style="display:none;">
+        <span class="control-label">快捷</span>
+        <select id="dash-quick">
+          <option value="this">本周</option>
+          <option value="last">上周</option>
+          <option value="last2">上上周</option>
+        </select>
+      </div>
+      <div class="control" style="margin-left:auto;">
+        <span class="control-label">导出范围</span>
+        <select id="dash-export-scope">
+          <option value="current">当前主播</option>
+          <option value="broker">当前经纪人</option>
+          <option value="all">全部主播</option>
+        </select>
+      </div>
+      <div class="control">
+        <span class="control-label" style="visibility:hidden;">_</span>
+        <button class="btn" id="dash-export" title="导出 Word 报告">📄 导出 Word</button>
+      </div>
+      <div class="control">
+        <span class="control-label" style="visibility:hidden;">_</span>
+        <button class="btn btn-ghost" id="dash-view-toggle" title="切换卡片墙/单播视图">🃏 卡片墙</button>
+      </div>
+    </div>
+
+    <div id="dash-broker-summary"></div>
+
+    <!-- 卡片墙（默认隐藏） -->
+    <div id="dash-card-wall" style="display:none;"></div>
+
+    <!-- 单播视图内容 -->
+    <div id="dash-single-view">
+    <div id="dash-health"></div>
+    <div class="metric-grid" id="dash-metrics"></div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">最近 7 日数据明细</div>
+        <div class="table-meta" id="dash-recent-meta">--</div>
+      </div>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>状态</th>
+            <th class="num">曝光</th>
+            <th class="num">场观</th>
+            <th class="num">新增粉丝</th>
+            <th class="num">ACU</th>
+            <th class="num">送礼人数</th>
+            <th class="num">评论人数</th>
+            <th>备注</th>
+          </tr>
+        </thead>
+        <tbody id="dash-recent-body"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <!-- 近 30 天趋势图 -->
+    <div id="dash-trend-charts"></div>
+
+    </div><!-- /dash-single-view -->
+  </div>
+
+  <!-- ============ 数据录入（单条） ============ -->
+  <div class="page" id="page-entry">
+    <div class="section">
+      <div class="section-title">📝 录入 / 更新数据</div>
+      <div class="section-subtitle">同一主播 + 日期的数据会自动覆盖更新</div>
+
+      <!-- 主播筛选行 -->
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
+        <div class="control" style="margin:0;">
+          <span class="control-label" style="font-size:11px;">经纪人</span>
+          <select id="entry-broker-filter" style="font-size:13px;"></select>
+        </div>
+        <div class="control" style="margin:0;">
+          <span class="control-label" style="font-size:11px;">抖音号</span>
+          <input type="text" id="entry-douyin-search" placeholder="搜索抖音号…"
+            style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-0);font-size:13px;outline:none;width:130px;">
+        </div>
+        <span style="color:var(--text-3); font-size:12px; margin-left:4px;">筛选后从下方选择主播</span>
+      </div>
+
+      <div class="input-grid">
+        <label>日期<input type="date" id="entry-date"></label>
+        <label>主播<select id="entry-anchor"></select></label>
+        <label>直播状态
+          <select id="m-_status">
+            <option value="live">🔴 正常开播</option>
+            <option value="off">💤 停播休息</option>
+            <option value="limited">⚠️ 平台限流</option>
+            <option value="abnormal">⛔ 其他异常</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="input-grid" id="entry-metrics-grid">
+        <label>曝光<input type="number" id="m-曝光" min="0" placeholder="0"></label>
+        <label>场观<input type="number" id="m-场观" min="0" placeholder="0"></label>
+        <label>新增粉丝<input type="number" id="m-新增粉丝" min="0" placeholder="0"></label>
+        <label>ACU<input type="number" id="m-ACU" min="0" placeholder="0"></label>
+        <label>送礼人数<input type="number" id="m-送礼人数" min="0" placeholder="0"></label>
+        <label>评论人数<input type="number" id="m-评论人数" min="0" placeholder="0"></label>
+      </div>
+
+      <div id="entry-status-hint" style="display:none; margin-top:12px; padding:10px 14px; background:var(--bg-2); border-left:3px solid var(--text-2); border-radius:6px; font-size:12px; color:var(--text-1);"></div>
+
+      <div style="margin-top:8px;">
+        <label style="display:flex; flex-direction:column; gap:6px; font-size:11px; color:var(--text-2); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">
+          备注（可选）
+          <textarea id="m-备注" placeholder="如：开了新人活动 / 平台限流 / 主播请假等" rows="2"></textarea>
+        </label>
+      </div>
+
+      <div style="display:flex; gap:12px; margin-top:20px;">
+        <button class="btn" id="save-entry">保存数据</button>
+        <button class="btn-ghost btn" id="load-entry">载入该日数据</button>
+        <button class="btn-ghost btn" id="clear-entry">清空</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">📋 历史录入（最近 30 条）</div>
+        <div class="table-meta"><span id="entry-count">0</span> 条记录</div>
+      </div>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>状态</th>
+            <th>主播</th>
+            <th class="num">曝光</th>
+            <th class="num">场观</th>
+            <th class="num">新增粉丝</th>
+            <th class="num">ACU</th>
+            <th class="num">送礼人数</th>
+            <th class="num">评论人数</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="entry-history"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 批量录入 ============ -->
+  <div class="page" id="page-bulk">
+    <div class="section">
+      <div class="section-title">⚡ 批量录入</div>
+      <div class="section-subtitle">同一天所有主播的数据，一次填完，保存时会覆盖该日数据</div>
+
+      <div class="control-bar">
+        <div class="control">
+          <span class="control-label">日期</span>
+          <input type="date" id="bulk-date">
+        </div>
+        <div class="control">
+          <span class="control-label">经纪人</span>
+          <select id="bulk-broker-filter"></select>
+        </div>
+        <div class="control">
+          <span class="control-label">抖音号</span>
+          <input type="text" id="bulk-douyin-search" placeholder="搜索抖音号…"
+            style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-0);font-size:13px;outline:none;width:130px;">
+        </div>
+        <button class="btn" id="bulk-load">载入该日数据</button>
+        <button class="btn" id="bulk-save">保存全部</button>
+        <button class="btn btn-ghost" id="bulk-mark-all-off" title="将所有可见主播标记为停播休息">💤 全员停播</button>
+        <button class="btn btn-ghost" id="bulk-mark-all-live" title="将所有可见主播重置为正常开播">🔴 全员开播</button>
+      </div>
+
+      <div class="bulk-table">
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>主播</th>
+                <th>状态</th>
+                <th class="num">曝光</th>
+                <th class="num">场观</th>
+                <th class="num">新增粉丝</th>
+                <th class="num">ACU</th>
+                <th class="num">送礼人数</th>
+                <th class="num">评论人数</th>
+                <th>备注</th>
+              </tr>
+            </thead>
+            <tbody id="bulk-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 粘贴导入 ============ -->
+  <div class="page" id="page-paste">
+    <div class="section">
+      <div class="section-title">📋 Excel/CSV 粘贴导入</div>
+      <div class="section-subtitle">
+        从平台后台或 Excel 复制表格内容，粘贴到下方框中。第一行需是表头，系统将自动识别以下字段（多余列自动忽略）：<br>
+        <strong style="color:var(--text-0);">直播开始时间、曝光人数、进直播间人数、打赏人数、新增粉丝、ACU、评论人数</strong>（列顺序不限）
+      </div>
+
+      <!-- 第一步：选择主播 -->
+      <div id="paste-step-anchor" style="margin-bottom:20px;">
+        <div style="display:flex; align-items:center; gap:16px; padding:16px; background:var(--bg-2); border:1px solid var(--border); border-radius:8px;">
+          <span style="color:var(--text-1); white-space:nowrap;">第一步：选择主播</span>
+          <div id="paste-anchor-display" style="flex:1; display:flex; align-items:center; gap:12px;">
+            <span id="paste-anchor-name" style="color:var(--text-2); font-style:italic;">未选择</span>
+            <button class="btn btn-ghost" id="paste-select-anchor-btn" style="padding:4px 14px; font-size:13px;">选择主播 ▾</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 第二步：粘贴数据（初始隐藏，选完主播后显示） -->
+      <div id="paste-step-data" style="display:none;">
+        <div style="margin-bottom:10px; color:var(--text-1); font-size:13px;">第二步：粘贴数据</div>
+        <textarea id="paste-input" class="paste-area" placeholder="直播开始时间&#9;曝光人数&#9;进直播间人数&#9;打赏人数&#9;新增粉丝&#9;ACU&#9;评论人数
+2025/01/15 20:30:00&#9;50000&#9;8000&#9;30&#9;200&#9;1500&#9;3000
+2025/01/16 20:00:00&#9;48000&#9;7500&#9;25&#9;180&#9;1400&#9;2800"></textarea>
+
+        <div style="display:flex; gap:12px; margin-top:16px;">
+          <button class="btn" id="paste-preview-btn">预览</button>
+          <button class="btn btn-ghost" id="paste-confirm-btn" disabled>确认导入</button>
+          <button class="btn btn-ghost" id="paste-clear-btn">清空</button>
+        </div>
+
+        <div id="paste-preview" class="paste-preview" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 粘贴导入 · 选主播 Modal -->
+  <div id="modal-paste-anchor" class="modal-overlay" style="display:none;">
+    <div class="modal-box" style="max-width:440px;">
+      <div class="modal-header">
+        <div class="modal-title">选择主播</div>
+        <button class="modal-close" id="modal-paste-anchor-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="margin-bottom:12px;">
+          <input type="text" id="paste-anchor-search" placeholder="搜索主播名或抖音号…"
+            style="width:100%; padding:8px 12px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; color:var(--text-0); font-size:14px;">
+        </div>
+        <div id="paste-anchor-list" style="max-height:320px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 日环比 ============ -->
+  <div class="page" id="page-daily">
+    <div class="control-bar">
+      <div class="control">
+        <span class="control-label">经纪人</span>
+        <select id="daily-broker-filter">
+          <option value="all">全部</option>
+        </select>
+      </div>
+      <div class="control">
+        <span class="control-label">抖音号</span>
+        <input type="text" id="daily-douyin-search" placeholder="搜索抖音号…"
+          style="padding:6px 10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; color:var(--text-0); font-size:13px; width:140px;">
+      </div>
+      <div class="control">
+        <span class="control-label">主播</span>
+        <select id="daily-anchor"></select>
+      </div>
+      <div class="control">
+        <span class="control-label">今日</span>
+        <input type="date" id="daily-date">
+      </div>
+      <div class="control" style="margin-left:auto;">
+        <span class="control-label">导出范围</span>
+        <select id="daily-export-scope">
+          <option value="current">当前主播</option>
+          <option value="all">全部主播</option>
+          <option value="broker">按经纪人</option>
+        </select>
+      </div>
+      <div class="control" id="daily-export-broker-control" style="display:none;">
+        <span class="control-label">经纪人</span>
+        <select id="daily-export-broker"></select>
+      </div>
+      <div class="control">
+        <span class="control-label" style="visibility:hidden;">_</span>
+        <button class="btn" id="daily-export">📄 导出 Word</button>
+      </div>
+    </div>
+
+    <div id="daily-status-alert"></div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">日环比分析</div>
+        <div class="table-meta" id="daily-meta">--</div>
+      </div>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>指标</th>
+            <th class="num">昨日</th>
+            <th class="num">今日</th>
+            <th class="num">变化量</th>
+            <th class="num">环比</th>
+            <th>趋势</th>
+          </tr>
+        </thead>
+        <tbody id="daily-body"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="review-section">
+      <div class="review-header">
+        <div class="review-title">复盘提升 · 下滑指标重点跟进</div>
+        <div class="review-count" id="daily-review-count">--</div>
+      </div>
+      <div id="daily-review-container"></div>
+    </div>
+  </div>
+
+  <!-- ============ 周环比 ============ -->
+  <div class="page" id="page-weekly">
+    <div class="control-bar">
+      <div class="control">
+        <span class="control-label">经纪人</span>
+        <select id="weekly-broker-filter">
+          <option value="all">全部</option>
+        </select>
+      </div>
+      <div class="control">
+        <span class="control-label">抖音号</span>
+        <input type="text" id="weekly-douyin-search" placeholder="搜索抖音号…"
+          style="padding:6px 10px; background:var(--bg-2); border:1px solid var(--border); border-radius:6px; color:var(--text-0); font-size:13px; width:140px;">
+      </div>
+      <div class="control">
+        <span class="control-label">主播</span>
+        <select id="weekly-anchor"></select>
+      </div>
+      <div class="control">
+        <span class="control-label">选择周</span>
+        <input type="week" id="weekly-week" style="min-width:160px;">
+      </div>
+      <div class="control">
+        <span class="control-label">快捷</span>
+        <select id="weekly-quick">
+          <option value="this">本周</option>
+          <option value="last">上周</option>
+          <option value="last2">上上周</option>
+        </select>
+      </div>
+      <div class="control" style="margin-left:auto;">
+        <span class="control-label">导出范围</span>
+        <select id="weekly-export-scope">
+          <option value="current">当前主播</option>
+          <option value="all">全部主播</option>
+          <option value="broker">按经纪人</option>
+        </select>
+      </div>
+      <div class="control" id="weekly-export-broker-control" style="display:none;">
+        <span class="control-label">经纪人</span>
+        <select id="weekly-export-broker"></select>
+      </div>
+      <div class="control">
+        <span class="control-label" style="visibility:hidden;">_</span>
+        <button class="btn" id="weekly-export">📄 导出 Word</button>
+      </div>
+      <div class="control">
+        <span class="control-label" style="visibility:hidden;">_</span>
+        <button class="btn btn-ghost" id="weekly-report">📋 生成周报</button>
+      </div>
+      <input type="hidden" id="weekly-date">
+    </div>
+
+    <div id="weekly-status-alert"></div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">周环比分析（曝光/场观/新增粉丝/送礼人数/评论人数为周累计，ACU 为周平均）</div>
+        <div class="table-meta" id="weekly-meta">--</div>
+      </div>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>指标</th>
+            <th class="num">上周</th>
+            <th class="num">本周</th>
+            <th class="num">变化量</th>
+            <th class="num">环比</th>
+            <th>趋势</th>
+          </tr>
+        </thead>
+        <tbody id="weekly-body"></tbody>
+      </table>
+      </div>
+    </div>
+
+    <div class="review-section">
+      <div class="review-header">
+        <div class="review-title">复盘提升 · 下滑指标重点跟进</div>
+        <div class="review-count" id="weekly-review-count">--</div>
+      </div>
+      <div id="weekly-review-container"></div>
+    </div>
+  </div>
+
+  <!-- ============ 主播对比 ============ -->
+  <div class="page" id="page-compare">
+    <div class="control-bar">
+      <div class="control">
+        <span class="control-label">经纪人</span>
+        <select id="cmp-broker-filter">
+          <option value="all">所有经纪人</option>
+        </select>
+      </div>
+      <div class="control">
+        <span class="control-label">对比维度</span>
+        <select id="cmp-period">
+          <option value="dod">日环比</option>
+          <option value="wow">周环比</option>
+        </select>
+      </div>
+      <div class="control">
+        <span class="control-label">基准日期 / 本周一</span>
+        <input type="date" id="cmp-date">
+      </div>
+      <div class="control">
+        <span class="control-label">查看指标</span>
+        <select id="cmp-metric">
+          <option value="曝光">曝光</option>
+          <option value="场观">场观</option>
+          <option value="新增粉丝">新增粉丝</option>
+          <option value="ACU">ACU</option>
+          <option value="送礼人数">送礼人数</option>
+          <option value="评论人数">评论人数</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-header">
+        <div class="table-title">多主播对比 · <span id="cmp-metric-name">曝光</span></div>
+        <div class="table-meta" id="cmp-meta">--</div>
+      </div>
+      <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>排名</th>
+            <th>主播</th>
+            <th class="num" id="cmp-th-prev">上期</th>
+            <th class="num" id="cmp-th-curr">本期</th>
+            <th class="num">变化量</th>
+            <th class="num">环比</th>
+            <th>趋势</th>
+          </tr>
+        </thead>
+        <tbody id="cmp-body"></tbody>
+        <tfoot id="cmp-foot"></tfoot>
+      </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 复盘汇总 ============ -->
+  <div class="page" id="page-reviews">
+    <div class="section">
+      <div class="section-title">📚 复盘记录汇总</div>
+      <div class="section-subtitle">所有下滑指标的复盘记录集中查看</div>
+
+      <!-- 第一行：类型 + 日期 -->
+      <div class="filter-bar" style="margin-top:16px; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap;">类型：</span>
+        <div class="filter-chip active" data-filter="type" data-value="all">全部</div>
+        <div class="filter-chip" data-filter="type" data-value="daily">日环比</div>
+        <div class="filter-chip" data-filter="type" data-value="weekly">周环比</div>
+        <div id="review-date-wrap" style="display:none; align-items:center; gap:6px; margin-left:10px;">
+          <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap;">日期：</span>
+          <input type="date" id="review-date-input"
+            style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-0);font-size:13px;outline:none;">
+          <button class="btn btn-ghost" id="review-date-clear" style="padding:4px 10px;font-size:12px;">清除</button>
+        </div>
+        <div id="review-week-wrap" style="display:none; align-items:center; gap:6px; margin-left:10px;">
+          <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap;">周期：</span>
+          <input type="week" id="review-week-input"
+            style="background:var(--bg-2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;color:var(--text-0);font-size:13px;outline:none;min-width:160px;">
+          <button class="btn btn-ghost" id="review-week-clear" style="padding:4px 10px;font-size:12px;">清除</button>
+        </div>
+      </div>
+
+      <!-- 第二行：状态 -->
+      <div class="filter-bar" style="align-items:center; gap:6px; flex-wrap:wrap;">
+        <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap;">状态：</span>
+        <div class="filter-chip active" data-filter="status" data-value="all">全部</div>
+        <div class="filter-chip" data-filter="status" data-value="todo">待跟进</div>
+        <div class="filter-chip" data-filter="status" data-value="doing">进行中</div>
+        <div class="filter-chip" data-filter="status" data-value="done">已解决</div>
+      </div>
+
+      <!-- 第三行：经纪人 + 主播 -->
+      <div class="filter-bar" style="align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap;">经纪人：</span>
+        <select id="review-broker-filter" style="font-size:13px; min-width:130px;"></select>
+        <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap; margin-left:6px;">主播：</span>
+        <select id="review-anchor-filter" style="font-size:13px; min-width:130px;"></select>
+      </div>
+
+      <!-- 第四行：指标 -->
+      <div class="filter-bar" style="align-items:center; gap:6px; flex-wrap:wrap;">
+        <span style="font-size:11px; color:var(--text-2); font-weight:600; white-space:nowrap;">指标：</span>
+        <div class="filter-chip active" data-filter="metric" data-value="all">全部</div>
+        <div class="filter-chip" data-filter="metric" data-value="曝光">曝光</div>
+        <div class="filter-chip" data-filter="metric" data-value="场观">场观</div>
+        <div class="filter-chip" data-filter="metric" data-value="新增粉丝">新增粉丝</div>
+        <div class="filter-chip" data-filter="metric" data-value="ACU">ACU</div>
+        <div class="filter-chip" data-filter="metric" data-value="送礼人数">送礼人数</div>
+        <div class="filter-chip" data-filter="metric" data-value="评论人数">评论人数</div>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;" id="review-stats"></div>
+    </div>
+
+    <div id="review-list-container"></div>
+  </div>
+
+  <!-- ============ 主播管理 ============ -->
+  <div class="page" id="page-anchors">
+    <div class="section">
+      <div class="section-title">🧑‍💼 经纪人管理</div>
+      <div class="section-subtitle">先添加经纪人，再把主播分配给经纪人。经纪人和主播是严格隔离的，经纪人不能直接录入数据。</div>
+      <div class="input-grid">
+        <label>经纪人姓名<input type="text" id="new-broker-name" placeholder="如：张三"></label>
+        <label>备注（可选）<input type="text" id="new-broker-note" placeholder="如：负责美妆赛道"></label>
+      </div>
+      <button class="btn" id="add-broker" style="margin-top:16px;">添加经纪人</button>
+
+      <div class="divider"></div>
+      <div style="font-size:13px; color:var(--text-1); font-weight:600; margin-bottom:12px;">已配置经纪人</div>
+      <div class="anchor-list" id="broker-list"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">👥 添加主播</div>
+      <div class="input-grid">
+        <label>主播昵称<input type="text" id="new-anchor-name" placeholder="如：主播A"></label>
+        <label>抖音号<input type="text" id="new-anchor-douyin" placeholder="如：dy123456"></label>
+        <label>平台<input type="text" id="new-anchor-platform" placeholder="抖音"></label>
+        <label>所属经纪人
+          <select id="new-anchor-broker">
+            <option value="">— 未分配 —</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn" id="add-anchor" style="margin-top:16px;">添加主播</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">已配置主播</div>
+      <div class="filter-bar" style="margin-bottom:16px; align-items:center;">
+        <input type="text" id="anchor-search" placeholder="🔍 按昵称或抖音号搜索…" style="flex:1; min-width:240px;">
+        <select id="anchor-broker-filter" style="min-width:160px;">
+          <option value="all">所有经纪人</option>
+          <option value="">未分配</option>
+        </select>
+      </div>
+      <div class="anchor-list" id="anchor-list"></div>
+    </div>
+  </div>
+
+  <!-- ============ 设置 ============ -->
+  <div class="page" id="page-settings">
+    <div id="backup-reminder-banner" style="display:none;"></div>
+    <div class="section">
+      <div class="section-title">⚙️ 预警阈值</div>
+      <div class="section-subtitle">下滑超过下方百分比时，会在总览页和指标卡片上突出标记</div>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">异常下滑阈值</div>
+          <div class="settings-desc">环比下滑超过此值，标记为"重点关注"</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" id="setting-alert-pct" min="1" max="100" step="1">
+          <span style="color:var(--text-2);">%</span>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">警告下滑阈值</div>
+          <div class="settings-desc">环比下滑超过此值，标记为"警告"（数值需低于上方异常阈值）</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" id="setting-warn-pct" min="1" max="100" step="1">
+          <span style="color:var(--text-2);">%</span>
+        </div>
+      </div>
+
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">连续下滑天数</div>
+          <div class="settings-desc">某指标连续下滑达到此天数时，显示 🔥 重点关注标记</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" id="setting-streak-days" min="2" max="14" step="1">
+          <span style="color:var(--text-2);">天</span>
+        </div>
+      </div>
+
+      <button class="btn" id="save-settings" style="margin-top:16px;">保存设置</button>
+    </div>
+
+    <div class="section">
+      <div class="section-title">📊 健康度评分规则</div>
+      <div class="section-subtitle">每天的健康度根据各指标的环比表现自动打分（0-100）</div>
+      <ul style="color:var(--text-1); font-size:13px; padding-left:20px; line-height:1.8;">
+        <li>6 个指标各占 1/6 权重（每项满分约 16.67）</li>
+        <li>单项指标上升 → 满分；持平 → 80%；下滑越多得分越低</li>
+        <li>下滑超过"异常阈值" → 该项得 0 分</li>
+        <li>评分等级：≥85 优秀 / 70-85 良好 / 50-70 一般 / &lt;50 需关注</li>
+      </ul>
+    </div>
+
+    <div class="section">
+      <div class="section-title">💾 数据管理</div>
+      <div class="section-subtitle">数据保存在浏览器本地，可以导出 / 导入 / 清空</div>
+      <div id="last-export-info" style="font-size:12px; color:var(--text-2); margin-bottom:12px;"></div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" id="export-data">导出 JSON</button>
+        <label class="btn btn-ghost" style="display:inline-block;">
+          导入 JSON
+          <input type="file" id="import-file" accept=".json" style="display:none;">
+        </label>
+        <button class="btn btn-danger" id="clear-all">清空所有数据</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /main-app -->
+
+<div class="toast" id="toast"></div>
+
+<!-- 编辑主播弹窗 -->
+<div class="modal-overlay" id="edit-anchor-modal">
+  <div class="modal">
+    <div class="modal-title">编辑主播信息</div>
+    <div class="modal-subtitle">修改后会同步更新所有相关数据</div>
+    <div class="modal-field">
+      <label>主播昵称 *</label>
+      <input type="text" id="edit-anchor-name">
+    </div>
+    <div class="modal-field">
+      <label>抖音号</label>
+      <input type="text" id="edit-anchor-douyin" placeholder="如：dy123456">
+    </div>
+    <div class="modal-field">
+      <label>平台</label>
+      <input type="text" id="edit-anchor-platform" placeholder="抖音">
+    </div>
+    <div class="modal-field">
+      <label>所属经纪人</label>
+      <select id="edit-anchor-broker"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="edit-anchor-cancel">取消</button>
+      <button class="btn" id="edit-anchor-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ============================================================
+// ⚙️ 配置区 — 部署前替换为你自己的 Supabase 项目信息
+// ============================================================
+const SUPABASE_URL  = 'https://hqawilbfwvrozmnnnspp.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_mCT1CFmLXjVqKK-y8hTw1g_cSQgdOF8';
+// ============================================================
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+</script>
+<script>
+// ============================================================
+// 常量
+const METRICS = ['曝光', '场观', '新增粉丝', 'ACU', '送礼人数', '评论人数'];
+const AVG_METRICS = new Set(['ACU']);
+
+// 直播状态枚举
+const STREAM_STATUS = {
+  live:    { label: '正常开播', short: '正常',  emoji: '🔴', color: 'var(--up)' },
+  off:     { label: '停播休息', short: '停播',  emoji: '💤', color: 'var(--text-2)' },
+  limited: { label: '平台限流', short: '限流',  emoji: '⚠️', color: 'var(--warn)' },
+  abnormal:{ label: '其他异常', short: '异常',  emoji: '⛔', color: 'var(--down)' }
+};
+// 非正常开播状态集合（参与环比时需要提醒）
+const NON_LIVE_STATUSES = new Set(['off', 'limited', 'abnormal']);
+// 完全停播的状态（不参与健康度/周均计算，但其它仍参与）
+const SKIP_FROM_AVG = new Set(['off']);  // 只有完全停播才跳过周均
+
+const DEFAULT_SETTINGS = {
+  alertPct: 20,   // 下滑超过 20% 标红"异常"
+  warnPct: 10,    // 下滑超过 10% 标黄"警告"
+  streakDays: 3   // 连续下滑 3 天高亮
+};
+
+// ============================================================
+// 状态
+// ============================================================
+let state = {
+  anchors: [],
+  brokers: [],     // [{id, name, note}]
+  records: {},
+  reviews: {},
+  settings: { ...DEFAULT_SETTINGS }
+};
+
+let reviewFilters = { status: 'all', metric: 'all', anchor: 'all', type: 'all', date: '', week: '' };
+let currentBrokerFilter = 'all';  // 经纪人筛选器
+
+// ============================================================
+// 持久化（Supabase 云端）
+// ============================================================
+
+// 字段映射：state 字段名 ↔ 数据库列名
+const METRIC_TO_COL = {
+  '曝光': 'val_exposure', '场观': 'val_viewers', '新增粉丝': 'val_new_fans',
+  'ACU': 'val_acu', '送礼人数': 'val_gifters', '评论人数': 'val_commenters'
+};
+const COL_TO_METRIC = Object.fromEntries(Object.entries(METRIC_TO_COL).map(([k,v])=>[v,k]));
+
+function dbRowToRecord(row) {
+  const data = {};
+  Object.entries(METRIC_TO_COL).forEach(([m, col]) => { data[m] = row[col] || 0; });
+  data['备注']   = row.note || '';
+  data['_status'] = row.status || 'live';
+  return data;
+}
+
+function recordToDbRow(date, anchorId, data) {
+  const row = { date, anchor_id: anchorId, note: data['备注'] || '', status: data['_status'] || 'live' };
+  Object.entries(METRIC_TO_COL).forEach(([m, col]) => { row[col] = data[m] || 0; });
+  row.updated_at = new Date().toISOString();
+  return row;
+}
+
+async function loadState() {
+  try {
+    const [
+      { data: brokers },
+      { data: anchors },
+      { data: records },
+      { data: reviews },
+      { data: settings }
+    ] = await Promise.all([
+      _sb.from('brokers').select('*').order('created_at'),
+      _sb.from('anchors').select('*').order('created_at'),
+      _sb.from('records').select('*'),
+      _sb.from('reviews').select('*'),
+      _sb.from('settings').select('*').eq('id', 1).single()
+    ]);
+
+    state.brokers = (brokers || []).map(b => ({ id: b.id, name: b.name, note: b.note || '' }));
+    state.anchors = (anchors || []).map(a => ({
+      id: a.id, name: a.name, douyinId: a.douyin_id || '',
+      platform: a.platform || '', brokerId: a.broker_id || ''
+    }));
+    state.records = {};
+    (records || []).forEach(r => {
+      const key = `${r.date}::${r.anchor_id}`;
+      state.records[key] = dbRowToRecord(r);
+    });
+    state.reviews = {};
+    (reviews || []).forEach(r => {
+      state.reviews[r.key] = { text: r.text || '', status: r.status || 'todo' };
+    });
+    if (settings) {
+      state.settings = {
+        alertPct: settings.alert_pct,
+        warnPct: settings.warn_pct,
+        streakDays: settings.streak_days
+      };
+    }
+    state.settings = { ...DEFAULT_SETTINGS, ...state.settings };
+  } catch(e) {
+    console.error('loadState 失败:', e);
+    toast('数据加载失败，请刷新重试', 'error');
+  }
+}
+
+// persist(key) — 与原代码接口完全相同，但写云端
+async function persist(key) {
+  try {
+    if (key === 'anchors') {
+      await _sb.from('anchors').upsert(
+        state.anchors.map(a => ({
+          id: a.id, name: a.name, douyin_id: a.douyinId || '',
+          platform: a.platform || '', broker_id: a.brokerId || null
+        }))
+      );
+    } else if (key === 'brokers') {
+      await _sb.from('brokers').upsert(
+        state.brokers.map(b => ({ id: b.id, name: b.name, note: b.note || '' }))
+      );
+    } else if (key === 'records') {
+      const rows = Object.entries(state.records).map(([k, data]) => {
+        const [date, anchorId] = k.split('::');
+        return recordToDbRow(date, anchorId, data);
+      });
+      if (rows.length) await _sb.from('records').upsert(rows);
+    } else if (key === 'reviews') {
+      const rows = Object.entries(state.reviews).map(([k, v]) => ({
+        key: k, text: v.text || '', status: v.status || 'todo',
+        updated_at: new Date().toISOString()
+      }));
+      if (rows.length) await _sb.from('reviews').upsert(rows);
+    } else if (key === 'settings') {
+      await _sb.from('settings').upsert({
+        id: 1,
+        alert_pct: state.settings.alertPct,
+        warn_pct: state.settings.warnPct,
+        streak_days: state.settings.streakDays
+      });
+    }
+  } catch(e) {
+    console.error(`persist(${key}) 失败:`, e);
+    toast(`保存失败（${key}）`, 'error');
+  }
+}
+
+// 删除单条 record
+async function deleteRecord(date, anchorId) {
+  delete state.records[`${date}::${anchorId}`];
+  await _sb.from('records').delete().eq('date', date).eq('anchor_id', anchorId);
+}
+
+// 删除主播相关所有数据
+async function deleteAnchorData(anchorId) {
+  state.anchors = state.anchors.filter(x => x.id !== anchorId);
+  Object.keys(state.records).forEach(k => { if (k.endsWith('::' + anchorId)) delete state.records[k]; });
+  Object.keys(state.reviews).forEach(k => { if (k.includes('::' + anchorId + '::')) delete state.reviews[k]; });
+  await Promise.all([
+    _sb.from('anchors').delete().eq('id', anchorId),
+    _sb.from('records').delete().eq('anchor_id', anchorId),
+    _sb.from('reviews').delete().like('key', `%::${anchorId}::%`)
+  ]);
+}
+
+// 删除单条 review
+async function deleteReview(key) {
+  delete state.reviews[key];
+  await _sb.from('reviews').delete().eq('key', key);
+}
+
+// 删除经纪人
+async function deleteBroker(brokerId) {
+  state.brokers = state.brokers.filter(x => x.id !== brokerId);
+  state.anchors.forEach(a => { if (a.brokerId === brokerId) a.brokerId = ''; });
+  await Promise.all([
+    _sb.from('brokers').delete().eq('id', brokerId),
+    _sb.from('anchors').update({ broker_id: null }).eq('broker_id', brokerId)
+  ]);
+}
+
+function genId() { return 'a_' + Math.random().toString(36).slice(2, 9); }
+
+// ============================================================
+// 日期工具
+// ============================================================
+function fmtDate(d) {
+  if (typeof d === 'string') return d;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function parseDate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function addDays(s, n) {
+  const d = parseDate(s);
+  d.setDate(d.getDate() + n);
+  return fmtDate(d);
+}
+
+function getMonday(s) {
+  const d = parseDate(s);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return fmtDate(d);
+}
+
+// ISO 周转换：'2025-W03' → '2025-01-13' (周一日期)
+function isoWeekToMonday(isoStr) {
+  const m = isoStr.match(/^(\d{4})-W(\d{1,2})$/);
+  if (!m) return null;
+  const year = parseInt(m[1], 10);
+  const week = parseInt(m[2], 10);
+  // ISO 8601: 1月4日所在的周是第1周，周一为周首
+  const jan4 = new Date(year, 0, 4);
+  const jan4Day = jan4.getDay() || 7;  // 周日→7
+  const firstMonday = new Date(jan4);
+  firstMonday.setDate(jan4.getDate() - jan4Day + 1);
+  const target = new Date(firstMonday);
+  target.setDate(firstMonday.getDate() + (week - 1) * 7);
+  return fmtDate(target);
+}
+
+// 反向：'2025-01-13' → '2025-W03'
+function mondayToIsoWeek(dateStr) {
+  const d = parseDate(dateStr);
+  const target = new Date(d);
+  target.setHours(0, 0, 0, 0);
+  target.setDate(target.getDate() + 3 - (target.getDay() || 7));
+  const week1 = new Date(target.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((target - week1) / 86400000 - 3 + (week1.getDay() || 7)) / 7);
+  return `${target.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+}
+
+// ============================================================
+// 数值工具
+// ============================================================
+function fmtNum(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  if (n === 0) return '0';
+  return Math.round(n).toLocaleString('zh-CN');
+}
+
+function fmtChange(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  const sign = n > 0 ? '+' : '';
+  return sign + Math.round(n).toLocaleString('zh-CN');
+}
+
+function pctNum(prev, curr) {
+  if (prev === 0 || prev === null || prev === undefined) {
+    return curr > 0 ? Infinity : 0;
+  }
+  return (curr - prev) / prev * 100;
+}
+
+function fmtPct(prev, curr) {
+  const p = pctNum(prev, curr);
+  if (p === Infinity) return '新增';
+  if (p === 0 && prev === 0 && curr === 0) return '—';
+  const sign = p > 0 ? '+' : '';
+  return sign + p.toFixed(1) + '%';
+}
+
+function getRecord(date, anchorId) {
+  return state.records[`${date}::${anchorId}`] || null;
+}
+
+function getMetric(date, anchorId, metric) {
+  const r = getRecord(date, anchorId);
+  return r ? (Number(r[metric]) || 0) : 0;
+}
+
+function getNote(date, anchorId) {
+  const r = getRecord(date, anchorId);
+  return r ? (r['备注'] || '') : '';
+}
+
+// 获取直播状态，默认 'live'
+function getStatus(date, anchorId) {
+  const r = getRecord(date, anchorId);
+  if (!r) return null;  // 没录入
+  return r['_status'] || 'live';  // 默认正常开播
+}
+
+// 判断是否完全停播（off）
+function isOffDay(date, anchorId) {
+  return getStatus(date, anchorId) === 'off';
+}
+
+// 判断是否非正常状态（停播 / 限流 / 异常）
+function isAbnormalDay(date, anchorId) {
+  const s = getStatus(date, anchorId);
+  return s && NON_LIVE_STATUSES.has(s);
+}
+
+function getWeekMetric(monday, anchorId, metric) {
+  let sum = 0, count = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(monday, i);
+    const r = getRecord(d, anchorId);
+    if (r && r[metric] !== undefined && r[metric] !== null && r[metric] !== '') {
+      // 周均（ACU）：跳过完全停播日
+      if (AVG_METRICS.has(metric) && SKIP_FROM_AVG.has(r['_status'] || 'live')) continue;
+      sum += Number(r[metric]) || 0;
+      count++;
+    }
+  }
+  if (AVG_METRICS.has(metric)) return count > 0 ? sum / count : 0;
+  return sum;
+}
+
+function compareValues(prev, curr) {
+  if (curr > prev) return 'up';
+  if (curr < prev) return 'down';
+  return 'neutral';
+}
+
+// 警报等级：none / warn / alert
+function alertLevel(prev, curr) {
+  if (prev === 0 && curr === 0) return 'none';
+  if (curr >= prev) return 'none';
+  const p = Math.abs(pctNum(prev, curr));
+  if (p >= state.settings.alertPct) return 'alert';
+  if (p >= state.settings.warnPct) return 'warn';
+  return 'none';
+}
+
+// 连续下滑天数（日维度，从某天往前看）
+function consecutiveDeclineDays(date, anchorId, metric) {
+  let streak = 0;
+  let cursor = date;
+  // 起点本身如果是停播日，没意义，返回 0
+  if (isOffDay(cursor, anchorId)) return 0;
+
+  for (let i = 0; i < 30; i++) {
+    let prev = addDays(cursor, -1);
+    // 跳过连续的停播日找上一个开播日
+    let hops = 0;
+    while (isOffDay(prev, anchorId) && hops < 14) {
+      prev = addDays(prev, -1);
+      hops++;
+    }
+    const cr = getRecord(cursor, anchorId);
+    const pr = getRecord(prev, anchorId);
+    if (!cr || !pr) break;
+    const cv = getMetric(cursor, anchorId, metric);
+    const pv = getMetric(prev, anchorId, metric);
+    if (cv < pv) {
+      streak++;
+      cursor = prev;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+// ============================================================
+// 健康度评分
+// ============================================================
+function calcHealth(period, anchorId, dateStr) {
+  // 日维度：本期是停播日，整体不评分
+  if (period === 'dod' && isOffDay(dateStr, anchorId)) {
+    return { score: null, level: 'na', label: '停播日不评分', breakdown: [], reason: 'off' };
+  }
+
+  let totalScore = 0;
+  let validCount = 0;
+  const breakdown = [];
+
+  METRICS.forEach(m => {
+    let curr, prev;
+    if (period === 'dod') {
+      curr = getMetric(dateStr, anchorId, m);
+      prev = getMetric(addDays(dateStr, -1), anchorId, m);
+      // 上期是停播日：本指标不参评（因为对比无意义）
+      if (isOffDay(addDays(dateStr, -1), anchorId)) {
+        breakdown.push({ metric: m, score: null });
+        return;
+      }
+    } else {
+      const mon = getMonday(dateStr);
+      curr = getWeekMetric(mon, anchorId, m);
+      prev = getWeekMetric(addDays(mon, -7), anchorId, m);
+    }
+    if (curr === 0 && prev === 0) {
+      breakdown.push({ metric: m, score: null });
+      return;
+    }
+    validCount++;
+    let score;
+    if (curr > prev) score = 100;
+    else if (curr === prev) score = 80;
+    else {
+      const p = Math.abs(pctNum(prev, curr));
+      if (p >= state.settings.alertPct) score = 0;
+      else score = Math.max(0, 80 * (1 - p / state.settings.alertPct));
+    }
+    totalScore += score;
+    breakdown.push({ metric: m, score });
+  });
+
+  const final = validCount > 0 ? Math.round(totalScore / validCount) : null;
+  let level, label;
+  if (final === null) { level = 'na'; label = '数据不足'; }
+  else if (final >= 85) { level = 'excellent'; label = '优秀'; }
+  else if (final >= 70) { level = 'good'; label = '良好'; }
+  else if (final >= 50) { level = 'warn'; label = '一般'; }
+  else { level = 'bad'; label = '需关注'; }
+
+  return { score: final, level, label, breakdown };
+}
+
+// ============================================================
+// Toast
+// ============================================================
+let toastTimer = null;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ============================================================
+// Tab 切换
+// ============================================================
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('page-' + t.dataset.tab).classList.add('active');
+    renderAll();
+  });
+});
+
+// ============================================================
+// 主播下拉
+// ============================================================
+function populateAnchorSelects() {
+  // 各页面主播下拉根据当前经纪人筛选状态过滤
+  const dashBroker = document.getElementById('dash-broker-filter')?.value || 'all';
+  const cmpBroker = document.getElementById('cmp-broker-filter')?.value || 'all';
+  const dailyBroker = document.getElementById('daily-broker-filter')?.value || 'all';
+  const dailyDouyin = (document.getElementById('daily-douyin-search')?.value || '').trim().toLowerCase();
+  const weeklyBroker = document.getElementById('weekly-broker-filter')?.value || 'all';
+  const weeklyDouyin = (document.getElementById('weekly-douyin-search')?.value || '').trim().toLowerCase();
+  const entryBroker = document.getElementById('entry-broker-filter')?.value || 'all';
+  const entryDouyin = (document.getElementById('entry-douyin-search')?.value || '').trim().toLowerCase();
+
+  const fillSelect = (id, brokerScope, douyinQuery) => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    let visible = state.anchors;
+    if (brokerScope && brokerScope !== 'all') {
+      visible = visible.filter(a => (a.brokerId || '') === brokerScope);
+    }
+    if (douyinQuery) {
+      visible = visible.filter(a =>
+        (a.douyinId || '').toLowerCase().includes(douyinQuery) ||
+        a.name.toLowerCase().includes(douyinQuery)
+      );
+    }
+    visible.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = a.name + (a.douyinId ? ` (@${a.douyinId})` : '');
+      sel.appendChild(opt);
+    });
+    if (prev && visible.find(a => a.id === prev)) sel.value = prev;
+  };
+
+  // 录入相关：跟随 entry 页筛选
+  fillSelect('entry-anchor', entryBroker, entryDouyin);
+  // 日/周环比：跟随各自筛选条件
+  fillSelect('daily-anchor', dailyBroker, dailyDouyin);
+  fillSelect('weekly-anchor', weeklyBroker, weeklyDouyin);
+  // 总览、对比页：跟随经纪人筛选
+  fillSelect('dash-anchor', dashBroker, '');
+  // 对比页是显示所有主播的列表，不需要单一选择，跳过
+
+  populateBrokerSelects();
+}
+
+// ============================================================
+// 漏录提醒
+// ============================================================
+function getMissingAnchors(dateStr) {
+  // 没录入 = 漏录；录入了但状态为停播 = 不算漏录
+  return state.anchors.filter(a => !getRecord(dateStr, a.id));
+}
+
+function renderMissingAlert() {
+  const container = document.getElementById('missing-alert');
+  const today = fmtDate(new Date());
+  const yesterday = addDays(today, -1);
+  const missingY = getMissingAnchors(yesterday);
+
+  if (missingY.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  const names = missingY.map(a => a.name).join('、');
+  container.innerHTML = `
+    <div class="alert-bar">
+      <div class="alert-bar-icon">⚠️</div>
+      <div class="alert-bar-text">
+        <strong>${yesterday}</strong> 还有 <strong>${missingY.length}</strong> 位主播未录入数据：${names}
+      </div>
+      <button class="btn btn-sm" id="goto-bulk">去批量录入</button>
+    </div>
+  `;
+  document.getElementById('goto-bulk').addEventListener('click', () => {
+    document.getElementById('bulk-date').value = yesterday;
+    document.querySelector('.tab[data-tab="bulk"]').click();
+    setTimeout(() => document.getElementById('bulk-load').click(), 100);
+  });
+}
+
+// ============================================================
+// 迷你折线图 (sparkline)
+// ============================================================
+function renderSparkline(values, color) {
+  if (!values || values.length < 2) return '';
+  const max = Math.max(...values, 0);
+  const min = Math.min(...values, 0);
+  const range = max - min || 1;
+  const w = 100, h = 100;
+  const step = w / (values.length - 1);
+  const pts = values.map((v, i) => {
+    const x = i * step;
+    const y = h - ((v - min) / range) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="${(values.length-1)*step}" cy="${h - ((values[values.length-1] - min) / range) * h}" r="2.5" fill="${color}"/>
+  </svg>`;
+}
+
+function getMetricSeries(anchorId, endDate, days, metric) {
+  const arr = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = addDays(endDate, -i);
+    arr.push(getMetric(d, anchorId, metric));
+  }
+  return arr;
+}
+
+// ============================================================
+// 渲染：总览
+// ============================================================
+function renderDashboard() {
+  const anchorId = document.getElementById('dash-anchor').value;
+  const period = document.getElementById('dash-period').value;
+  const date = document.getElementById('dash-date').value;
+  const brokerFilter = document.getElementById('dash-broker-filter').value;
+
+  // 经纪人汇总区域
+  const summaryEl = document.getElementById('dash-broker-summary');
+  if (brokerFilter && brokerFilter !== 'all') {
+    const broker = state.brokers.find(b => b.id === brokerFilter);
+    const ownedAnchors = state.anchors.filter(a => a.brokerId === brokerFilter);
+    if (broker && summaryEl) {
+      summaryEl.innerHTML = `
+        <div class="alert-bar" style="background:var(--neutral-bg); border-color:var(--neutral); margin-bottom:16px;">
+          <div class="alert-bar-icon">🧑‍💼</div>
+          <div class="alert-bar-text">
+            当前经纪人：<strong>${escapeHtml(broker.name)}</strong> · 负责 <strong>${ownedAnchors.length}</strong> 位主播：
+            ${ownedAnchors.map(a => `<span style="display:inline-block; margin:2px 4px; padding:2px 8px; background:var(--bg-3); border-radius:4px; font-size:12px;">${escapeHtml(a.name)}${a.douyinId ? ' @' + escapeHtml(a.douyinId) : ''}</span>`).join('')}
+          </div>
+        </div>
+      `;
+    }
+  } else if (summaryEl) {
+    summaryEl.innerHTML = '';
+  }
+
+  if (!anchorId || !date) return;
+
+  renderMissingAlert();
+
+  // 状态提醒
+  renderDashStatusAlert(anchorId, period, date);
+
+  // 健康度评分
+  const health = calcHealth(period, anchorId, date);
+  const hc = document.getElementById('dash-health');
+  if (health.reason === 'off') {
+    hc.innerHTML = `
+      <div class="health-score" style="border-left:3px solid var(--text-2);">
+        <div class="health-score-num" style="color:var(--text-2);">💤</div>
+        <div class="health-info">
+          <div class="health-label">数据健康度评分</div>
+          <div class="health-status" style="color:var(--text-1);">${health.label}</div>
+          <div class="health-detail">该日为停播日，环比对比无意义</div>
+        </div>
+      </div>
+    `;
+  } else if (health.score !== null) {
+    hc.innerHTML = `
+      <div class="health-score">
+        <div class="health-score-num ${health.level}">${health.score}</div>
+        <div class="health-info">
+          <div class="health-label">数据健康度评分</div>
+          <div class="health-status">${health.label}</div>
+          <div class="health-detail">基于 ${period === 'dod' ? '日环比' : '周环比'} · ${date}</div>
+        </div>
+      </div>
+    `;
+  } else {
+    hc.innerHTML = `<div class="health-score"><div class="health-info"><div class="health-label">数据健康度评分</div><div class="health-status" style="color:var(--text-2)">暂无数据</div></div></div>`;
+  }
+
+  // 指标卡片
+  const grid = document.getElementById('dash-metrics');
+  grid.innerHTML = '';
+
+  let periodLabel;
+  if (period === 'dod') {
+    periodLabel = `${date} vs ${addDays(date, -1)}`;
+  } else {
+    const tm = getMonday(date);
+    const lm = addDays(tm, -7);
+    periodLabel = `${tm}~${addDays(tm, 6)} vs ${lm}~${addDays(lm, 6)}`;
+  }
+  document.getElementById('dash-recent-meta').textContent = periodLabel;
+
+  METRICS.forEach(m => {
+    let curr, prev;
+    if (period === 'dod') {
+      curr = getMetric(date, anchorId, m);
+      prev = getMetric(addDays(date, -1), anchorId, m);
+    } else {
+      const tm = getMonday(date);
+      curr = getWeekMetric(tm, anchorId, m);
+      prev = getWeekMetric(addDays(tm, -7), anchorId, m);
+    }
+    const dir = compareValues(prev, curr);
+    const diff = curr - prev;
+    const icon = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '—';
+    const al = alertLevel(prev, curr);
+    const cardClass = al === 'alert' ? 'alert' : dir;
+
+    // 连续下滑（仅日维度）
+    let streak = 0;
+    if (period === 'dod') {
+      streak = consecutiveDeclineDays(date, anchorId, m);
+    }
+    const showFlame = period === 'dod' && streak >= state.settings.streakDays;
+
+    // 趋势图
+    const days = period === 'dod' ? 7 : 30;
+    const series = getMetricSeries(anchorId, date, days, m);
+    const sparkColor = al === 'alert' ? 'var(--down)' : dir === 'up' ? 'var(--up)' : dir === 'down' ? 'var(--down)' : 'var(--text-3)';
+
+    let alertTag = '';
+    if (al === 'alert') {
+      alertTag = `<span class="metric-alert-tag" data-tip="下滑超过 ${state.settings.alertPct}% 异常阈值">异常</span>`;
+    } else if (al === 'warn') {
+      alertTag = `<span class="metric-alert-tag warn" data-tip="下滑超过 ${state.settings.warnPct}% 警告阈值">警告</span>`;
+    }
+    if (showFlame) {
+      alertTag += `<span class="metric-alert-tag" style="margin-left:4px;" data-tip="连续 ${streak} 天下滑">🔥${streak}天</span>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = `metric-card ${cardClass}`;
+    const prevLabel = period === 'dod' ? '昨日' : '上周';
+    card.innerHTML = `
+      <div class="metric-head">
+        <div class="metric-name">${m}${AVG_METRICS.has(m) && period === 'wow' ? ' · 周均' : ''}</div>
+        <div>${alertTag}</div>
+      </div>
+      <div class="metric-value">${fmtNum(curr)}</div>
+      <div class="metric-prev">${prevLabel}：<span class="num">${fmtNum(prev)}</span></div>
+      <div class="metric-change change-${dir}">
+        <span class="change-icon ${dir}">${icon}</span>
+        <span>${fmtChange(diff)}</span>
+        <span style="opacity:0.7;">·</span>
+        <span>${fmtPct(prev, curr)}</span>
+      </div>
+      <div class="spark-wrap" data-tip="近 ${days} 天 ${m} 走势">${renderSparkline(series, sparkColor)}</div>
+    `;
+    grid.appendChild(card);
+  });
+
+  // 最近 7 天明细
+  const body = document.getElementById('dash-recent-body');
+  body.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(date, -i);
+    const r = getRecord(d, anchorId);
+    const note = r ? (r['备注'] || '') : '';
+    const noteHtml = note ? `<span class="note-tag">${note.length > 20 ? note.slice(0,20)+'…' : note}</span>` : '';
+    const status = r ? (r['_status'] || 'live') : null;
+    let statusCell, opacity = '';
+    if (!r) {
+      statusCell = '<td style="color:var(--text-3); font-size:12px;">未录入</td>';
+    } else {
+      const info = STREAM_STATUS[status];
+      statusCell = `<td><span style="color:${info.color}; font-size:12px;">${info.emoji} ${info.short}</span></td>`;
+      if (status === 'off') opacity = ' style="opacity:0.55;"';
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="label"${opacity}>${d}</td>
+      ${statusCell}
+      ${METRICS.map(m => `<td class="num"${opacity}>${r ? fmtNum(r[m] || 0) : '—'}</td>`).join('')}
+      <td>${noteHtml}</td>
+    `;
+    body.appendChild(tr);
+  }
+  // 近 30 天趋势图
+  renderTrendCharts(anchorId, date);
+}
+
+// ============================================================
+// 渲染：单条录入
+// ============================================================
+function renderEntryHistory() {
+  const body = document.getElementById('entry-history');
+  body.innerHTML = '';
+  const entries = Object.entries(state.records)
+    .map(([k, v]) => {
+      const [date, anchorId] = k.split('::');
+      const anchor = state.anchors.find(a => a.id === anchorId);
+      return { key: k, date, anchorId, anchor: anchor ? anchor.name : '已删除', ...v };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date) || a.anchor.localeCompare(b.anchor))
+    .slice(0, 30);
+
+  document.getElementById('entry-count').textContent = Object.keys(state.records).length;
+
+  if (entries.length === 0) {
+    body.innerHTML = `<tr><td colspan="10" class="empty">还没有数据，先在上面录入一条</td></tr>`;
+    return;
+  }
+
+  entries.forEach(e => {
+    const note = e['备注'] || '';
+    const noteHtml = note ? `<span class="note-tag">${note.length > 16 ? note.slice(0,16)+'…' : note}</span>` : '';
+    const status = e['_status'] || 'live';
+    const info = STREAM_STATUS[status];
+    let statusCell = `<td${status === 'off' ? ' style="opacity:0.55;"' : ''}>
+      <span style="color:${info.color}; font-size:12px;">${info.emoji} ${info.short}</span>
+    </td>`;
+    let opacity = status === 'off' ? ' style="opacity:0.55;"' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="label"${opacity}>${e.date}</td>
+      ${statusCell}
+      <td${opacity}>${e.anchor}${noteHtml}</td>
+      ${METRICS.map(m => `<td class="num"${opacity}>${fmtNum(e[m] || 0)}</td>`).join('')}
+      <td><button class="icon-btn" data-key="${e.key}">×</button></td>
+    `;
+    tr.querySelector('.icon-btn').addEventListener('click', async () => {
+      if (confirm(`删除 ${e.date} · ${e.anchor} 的数据？`)) {
+        const [date, anchorId] = e.key.split('::');
+        await deleteRecord(date, anchorId);
+        renderAll();
+        toast('已删除');
+      }
+    });
+    body.appendChild(tr);
+  });
+}
+
+document.getElementById('save-entry').addEventListener('click', async () => {
+  const date = document.getElementById('entry-date').value;
+  const anchorId = document.getElementById('entry-anchor').value;
+  if (!date || !anchorId) { toast('请选择日期和主播', 'error'); return; }
+  const status = document.getElementById('m-_status').value;
+  const data = {};
+  METRICS.forEach(m => {
+    const v = document.getElementById('m-' + m).value;
+    data[m] = v === '' ? 0 : Number(v);
+  });
+  data['备注'] = document.getElementById('m-备注').value.trim();
+  data['_status'] = status;
+  state.records[`${date}::${anchorId}`] = data;
+  await persist('records');
+  toast(status === 'live' ? '数据已保存' : `已保存（${STREAM_STATUS[status].label}）`);
+  renderAll();
+});
+
+document.getElementById('load-entry').addEventListener('click', () => {
+  const date = document.getElementById('entry-date').value;
+  const anchorId = document.getElementById('entry-anchor').value;
+  if (!date || !anchorId) return;
+  const r = getRecord(date, anchorId);
+  if (!r) { toast('该日期无数据', 'error'); return; }
+  METRICS.forEach(m => { document.getElementById('m-' + m).value = r[m] || ''; });
+  document.getElementById('m-备注').value = r['备注'] || '';
+  document.getElementById('m-_status').value = r['_status'] || 'live';
+  updateEntryStatusHint();
+  toast('已载入');
+});
+
+document.getElementById('clear-entry').addEventListener('click', () => {
+  METRICS.forEach(m => { document.getElementById('m-' + m).value = ''; });
+  document.getElementById('m-备注').value = '';
+  document.getElementById('m-_status').value = 'live';
+  updateEntryStatusHint();
+});
+
+// 状态切换：停播日提示用户数据可填 0
+function updateEntryStatusHint() {
+  const status = document.getElementById('m-_status').value;
+  const hint = document.getElementById('entry-status-hint');
+  if (status === 'live') {
+    hint.style.display = 'none';
+    return;
+  }
+  const info = STREAM_STATUS[status];
+  let msg = '';
+  if (status === 'off') {
+    msg = `${info.emoji} 已标记为「停播休息」。数据可全部留空或填 0，此日不参与健康度评分、不计入周均、不视为漏录。`;
+  } else if (status === 'limited') {
+    msg = `${info.emoji} 已标记为「平台限流」。环比照常计算，但会在分析页提示数据受限。`;
+  } else {
+    msg = `${info.emoji} 已标记为「其他异常」。环比照常计算，但会在分析页提示数据异常。`;
+  }
+  hint.style.display = 'block';
+  hint.style.borderLeftColor = info.color;
+  hint.innerHTML = msg;
+}
+document.getElementById('m-_status').addEventListener('change', updateEntryStatusHint);
+
+// ============================================================
+// 渲染：批量录入
+// ============================================================
+function renderBulkTable() {
+  const body = document.getElementById('bulk-body');
+  body.innerHTML = '';
+  const statusOpts = Object.entries(STREAM_STATUS).map(([k, v]) =>
+    `<option value="${k}">${v.emoji} ${v.short}</option>`).join('');
+  state.anchors.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.dataset.anchorId = a.id;
+    tr.innerHTML = `
+      <td class="metric-cell">${a.name}</td>
+      <td><select data-metric="_status" style="min-width:110px; padding:6px 10px; font-size:12px;">${statusOpts}</select></td>
+      ${METRICS.map(m => `<td class="num"><input type="number" min="0" data-metric="${m}" placeholder="0"></td>`).join('')}
+      <td><input type="text" data-metric="备注" placeholder="可选"></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function loadBulkData() {
+  const date = document.getElementById('bulk-date').value;
+  if (!date) { toast('请选择日期', 'error'); return; }
+  document.querySelectorAll('#bulk-body tr').forEach(tr => {
+    const aid = tr.dataset.anchorId;
+    const r = getRecord(date, aid);
+    tr.querySelectorAll('input, select').forEach(inp => {
+      const m = inp.dataset.metric;
+      if (m === '备注') {
+        inp.value = r ? (r['备注'] || '') : '';
+      } else if (m === '_status') {
+        inp.value = r ? (r['_status'] || 'live') : 'live';
+      } else {
+        inp.value = r ? (r[m] || '') : '';
+      }
+    });
+  });
+  toast(`已载入 ${date} 的数据`);
+}
+
+async function saveBulkData() {
+  const date = document.getElementById('bulk-date').value;
+  if (!date) { toast('请选择日期', 'error'); return; }
+  let saved = 0;
+  document.querySelectorAll('#bulk-body tr').forEach(tr => {
+    const aid = tr.dataset.anchorId;
+    let hasData = false;
+    let hasStatus = false;
+    const data = {};
+    tr.querySelectorAll('input, select').forEach(inp => {
+      const m = inp.dataset.metric;
+      if (m === '备注') {
+        data[m] = inp.value.trim();
+      } else if (m === '_status') {
+        data[m] = inp.value;
+        // 非正常状态视为有效录入（哪怕数字都是 0）
+        if (inp.value !== 'live') hasStatus = true;
+      } else {
+        const v = inp.value;
+        const num = v === '' ? 0 : Number(v);
+        data[m] = num;
+        if (num > 0) hasData = true;
+      }
+    });
+    if (hasData || data['备注'] || hasStatus) {
+      state.records[`${date}::${aid}`] = data;
+      saved++;
+    }
+  });
+  await persist('records');
+  toast(`已保存 ${saved} 位主播的数据`);
+  renderAll();
+}
+
+document.getElementById('bulk-load').addEventListener('click', loadBulkData);
+document.getElementById('bulk-save').addEventListener('click', saveBulkData);
+
+// 批量录入 — 按经纪人/抖音号筛选行显示
+function applyBulkFilter() {
+  const broker = document.getElementById('bulk-broker-filter')?.value || 'all';
+  const kw = (document.getElementById('bulk-douyin-search')?.value || '').trim().toLowerCase();
+  document.querySelectorAll('#bulk-body tr').forEach(tr => {
+    const aid = tr.dataset.anchorId;
+    const anchor = state.anchors.find(a => a.id === aid);
+    if (!anchor) { tr.style.display = ''; return; }
+    let show = true;
+    if (broker && broker !== 'all') show = show && (anchor.brokerId || '') === broker;
+    if (kw) show = show && (
+      (anchor.douyinId || '').toLowerCase().includes(kw) ||
+      anchor.name.toLowerCase().includes(kw)
+    );
+    tr.style.display = show ? '' : 'none';
+  });
+}
+
+document.getElementById('bulk-broker-filter').addEventListener('change', applyBulkFilter);
+document.getElementById('bulk-douyin-search').addEventListener('input', applyBulkFilter);
+
+// 数据录入 — 经纪人/抖音号筛选 entry-anchor 下拉
+document.getElementById('entry-broker-filter').addEventListener('change', () => {
+  populateAnchorSelects();
+});
+document.getElementById('entry-douyin-search').addEventListener('input', () => {
+  populateAnchorSelects();
+});
+
+// ============================================================
+// 粘贴导入
+// ============================================================
+let parsedRows = null;
+let pasteAnchorId = null; // 当前粘贴页面选中的主播
+
+// 字段别名映射：平台后台字段名 → 系统内部指标名
+const PASTE_COL_ALIASES = {
+  '直播开始时间': '__date__',
+  '开始时间': '__date__',
+  '日期': '__date__',
+  '曝光人数': '曝光',
+  '曝光': '曝光',
+  '进直播间人数': '场观',
+  '场观人数': '场观',
+  '场观': '场观',
+  '打赏人数': '送礼人数',
+  '送礼人数': '送礼人数',
+  '打赏': '送礼人数',
+  '新增粉丝': '新增粉丝',
+  'ACU': 'ACU',
+  'acu': 'ACU',
+  '平均在线': 'ACU',
+  '评论人数': '评论人数',
+  '评论': '评论人数',
+  '备注': '__note__',
+  '状态': '__status__',
+};
+
+function parseDateStr(raw) {
+  // 支持 2025/01/15 20:30:00 或 2025/01/15 或 2025-01-15 等，只取日期部分
+  const s = (raw || '').trim();
+  // 先取日期部分（空格前）
+  const datePart = s.split(' ')[0];
+  // 统一转连字符
+  const norm = datePart.replace(/\//g, '-');
+  const m = norm.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  return `${m[1]}-${String(Number(m[2])).padStart(2,'0')}-${String(Number(m[3])).padStart(2,'0')}`;
+}
+
+function parsePaste(text, anchorId) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return { error: '至少需要表头和一行数据' };
+
+  // 自动检测分隔符
+  const sep = lines[0].includes('\t') ? '\t' : ',';
+  const rawHeaders = lines[0].split(sep).map(h => h.trim());
+
+  // 建立列索引：只映射已知字段
+  const colMap = {}; // 系统字段名 → 列索引
+  rawHeaders.forEach((h, i) => {
+    const mapped = PASTE_COL_ALIASES[h] || PASTE_COL_ALIASES[h.trim()];
+    if (mapped) colMap[mapped] = i;
+  });
+
+  // 必须有日期列
+  if (colMap['__date__'] === undefined) {
+    return { error: '未找到日期列，请确认表头包含"直播开始时间"或"日期"' };
+  }
+
+  const anchor = state.anchors.find(a => a.id === anchorId);
+  if (!anchor) return { error: '请先选择主播' };
+
+  const rows = [];
+  const errors = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = lines[i].split(sep).map(c => c.trim());
+    const rawDate = cells[colMap['__date__']];
+    if (!rawDate) { errors.push(`第 ${i+1} 行：日期为空，已跳过`); continue; }
+
+    const normDate = parseDateStr(rawDate);
+    if (!normDate) {
+      errors.push(`第 ${i+1} 行：日期"${rawDate}"格式无法识别，已跳过`);
+      continue;
+    }
+
+    const data = {};
+    METRICS.forEach(m => {
+      const idx = colMap[m];
+      const v = idx !== undefined ? cells[idx] : undefined;
+      data[m] = (v === '' || v === undefined) ? 0 : Number(v.replace(/,/g,'')) || 0;
+    });
+    data['备注'] = colMap['__note__'] !== undefined ? (cells[colMap['__note__']] || '') : '';
+
+    // 状态列（可选）
+    let status = 'live';
+    if (colMap['__status__'] !== undefined) {
+      const s = (cells[colMap['__status__']] || '').trim();
+      const map = {
+        '正常开播':'live','正常':'live','live':'live','开播':'live',
+        '停播休息':'off','停播':'off','休息':'off','off':'off',
+        '平台限流':'limited','限流':'limited','limited':'limited',
+        '其他异常':'abnormal','异常':'abnormal','abnormal':'abnormal'
+      };
+      if (s && map[s]) status = map[s];
+    }
+    data['_status'] = status;
+
+    rows.push({ date: normDate, anchorId: anchor.id, anchorName: anchor.name, data });
+  }
+  return { rows, errors };
+}
+
+document.getElementById('paste-preview-btn').addEventListener('click', () => {
+  if (!pasteAnchorId) { toast('请先选择主播', 'error'); return; }
+  const txt = document.getElementById('paste-input').value;
+  if (!txt.trim()) { toast('请先粘贴数据', 'error'); return; }
+  const result = parsePaste(txt, pasteAnchorId);
+  const preview = document.getElementById('paste-preview');
+  preview.style.display = 'block';
+
+  if (result.error) {
+    preview.innerHTML = `<div style="color:var(--down)">❌ ${result.error}</div>`;
+    parsedRows = null;
+    document.getElementById('paste-confirm-btn').disabled = true;
+    return;
+  }
+  parsedRows = result.rows;
+  const anchor = state.anchors.find(a => a.id === pasteAnchorId);
+  let html = `<div style="margin-bottom:12px; color:var(--text-1);">主播：<strong style="color:var(--accent)">${anchor ? anchor.name : '—'}</strong>　解析到 <strong style="color:var(--up)">${result.rows.length}</strong> 行有效数据`;
+  if (result.errors.length > 0) {
+    html += `，<strong style="color:var(--down)">${result.errors.length}</strong> 行有问题</div>`;
+    html += `<div style="margin-bottom:12px;"><details><summary style="cursor:pointer; color:var(--down);">查看错误明细</summary><ul style="margin-top:8px; padding-left:20px;">${result.errors.map(e => `<li>${e}</li>`).join('')}</ul></details></div>`;
+  } else {
+    html += '</div>';
+  }
+
+  // 预览前 10 行
+  html += `<table><thead><tr><th>日期</th><th>主播</th><th>状态</th>${METRICS.map(m => `<th class="num">${m}</th>`).join('')}<th>备注</th></tr></thead><tbody>`;
+  result.rows.slice(0, 10).forEach(r => {
+    const st = STREAM_STATUS[r.data['_status'] || 'live'];
+    html += `<tr><td>${r.date}</td><td>${r.anchorName}</td><td>${st.emoji} ${st.short}</td>${METRICS.map(m => `<td class="num">${fmtNum(r.data[m])}</td>`).join('')}<td>${r.data['备注'] || ''}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  if (result.rows.length > 10) html += `<div style="margin-top:8px; color:var(--text-2);">…还有 ${result.rows.length - 10} 行未显示</div>`;
+  preview.innerHTML = html;
+
+  document.getElementById('paste-confirm-btn').disabled = result.rows.length === 0;
+});
+
+document.getElementById('paste-confirm-btn').addEventListener('click', async () => {
+  if (!parsedRows || parsedRows.length === 0) return;
+  if (!confirm(`确认导入 ${parsedRows.length} 行数据？（同主播+日期会被覆盖）`)) return;
+  parsedRows.forEach(r => {
+    state.records[`${r.date}::${r.anchorId}`] = r.data;
+  });
+  await persist('records');
+  toast(`已导入 ${parsedRows.length} 行`);
+  document.getElementById('paste-input').value = '';
+  document.getElementById('paste-preview').style.display = 'none';
+  document.getElementById('paste-confirm-btn').disabled = true;
+  parsedRows = null;
+  renderAll();
+});
+
+document.getElementById('paste-clear-btn').addEventListener('click', () => {
+  document.getElementById('paste-input').value = '';
+  document.getElementById('paste-preview').style.display = 'none';
+  document.getElementById('paste-confirm-btn').disabled = true;
+  parsedRows = null;
+});
+
+// ── 粘贴导入 · 主播选择 Modal ──────────────────────────────────
+function openPasteAnchorModal() {
+  const modal = document.getElementById('modal-paste-anchor');
+  modal.style.display = 'flex';
+  document.getElementById('paste-anchor-search').value = '';
+  renderPasteAnchorList('');
+  document.getElementById('paste-anchor-search').focus();
+}
+
+function renderPasteAnchorList(query) {
+  const list = document.getElementById('paste-anchor-list');
+  const q = query.toLowerCase();
+  const anchors = state.anchors.filter(a =>
+    !q || a.name.toLowerCase().includes(q) || (a.douyinId || '').toLowerCase().includes(q)
+  );
+  if (anchors.length === 0) {
+    list.innerHTML = `<div style="color:var(--text-2); text-align:center; padding:20px;">没有找到匹配的主播</div>`;
+    return;
+  }
+  list.innerHTML = anchors.map(a => {
+    const broker = state.brokers.find(b => b.id === a.brokerId);
+    const isSelected = a.id === pasteAnchorId;
+    return `<div class="paste-anchor-item${isSelected ? ' selected' : ''}" data-id="${a.id}" style="
+      padding:10px 14px; border-radius:6px; cursor:pointer;
+      background:${isSelected ? 'var(--bg-3)' : 'var(--bg-2)'};
+      border:1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'};
+      display:flex; justify-content:space-between; align-items:center;
+      transition: border-color .15s, background .15s;">
+      <div>
+        <span style="font-weight:500; color:var(--text-0);">${a.name}</span>
+        ${a.douyinId ? `<span style="margin-left:8px; color:var(--text-2); font-size:12px;">@${a.douyinId}</span>` : ''}
+      </div>
+      <div style="color:var(--text-2); font-size:12px;">${broker ? broker.name : ''}</div>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.paste-anchor-item').forEach(el => {
+    el.addEventListener('click', () => {
+      pasteAnchorId = el.dataset.id;
+      const a = state.anchors.find(x => x.id === pasteAnchorId);
+      document.getElementById('paste-anchor-name').textContent = a ? (a.name + (a.douyinId ? ` @${a.douyinId}` : '')) : '';
+      document.getElementById('paste-anchor-name').style.color = 'var(--accent)';
+      document.getElementById('paste-anchor-name').style.fontStyle = 'normal';
+      // 显示粘贴区
+      document.getElementById('paste-step-data').style.display = 'block';
+      // 清空上一次结果
+      document.getElementById('paste-input').value = '';
+      document.getElementById('paste-preview').style.display = 'none';
+      document.getElementById('paste-confirm-btn').disabled = true;
+      parsedRows = null;
+      document.getElementById('modal-paste-anchor').style.display = 'none';
+    });
+  });
+}
+
+document.getElementById('paste-select-anchor-btn').addEventListener('click', openPasteAnchorModal);
+document.getElementById('modal-paste-anchor-close').addEventListener('click', () => {
+  document.getElementById('modal-paste-anchor').style.display = 'none';
+});
+document.getElementById('paste-anchor-search').addEventListener('input', e => {
+  renderPasteAnchorList(e.target.value);
+});
+document.getElementById('modal-paste-anchor').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-paste-anchor'))
+    document.getElementById('modal-paste-anchor').style.display = 'none';
+});
+
+// ============================================================
+// 渲染：日环比
+// ============================================================
+// ============================================================
+// 状态警告条
+// ============================================================
+function renderDailyStatusAlert(anchorId, today, yesterday) {
+  const container = document.getElementById('daily-status-alert');
+  const todayStatus = getStatus(today, anchorId);
+  const yStatus = getStatus(yesterday, anchorId);
+  const msgs = [];
+
+  if (todayStatus && todayStatus !== 'live') {
+    const info = STREAM_STATUS[todayStatus];
+    msgs.push({
+      level: todayStatus === 'off' ? 'danger' : 'warn',
+      icon: info.emoji,
+      text: `<strong>今日（${today}）</strong>状态为「<strong>${info.label}</strong>」。${todayStatus === 'off' ? '环比对比无意义，仅作记录。' : '数据可能受影响，请结合实际情况判断。'}`
+    });
+  }
+  if (yStatus && yStatus !== 'live') {
+    const info = STREAM_STATUS[yStatus];
+    msgs.push({
+      level: yStatus === 'off' ? 'danger' : 'warn',
+      icon: info.emoji,
+      text: `<strong>昨日（${yesterday}）</strong>状态为「<strong>${info.label}</strong>」。${yStatus === 'off' ? '昨日停播，今日环比对比<strong>不适用</strong>，看到的"+100% 新增"实际是从 0 恢复正常。' : '昨日数据可能受影响，环比仅供参考。'}`
+    });
+  }
+
+  if (msgs.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = msgs.map(m =>
+    `<div class="alert-bar ${m.level === 'danger' ? 'danger' : ''}"><div class="alert-bar-icon">${m.icon}</div><div class="alert-bar-text">${m.text}</div></div>`
+  ).join('');
+}
+
+function renderDashStatusAlert(anchorId, period, date) {
+  const container = document.getElementById('dash-status-alert');
+  const msgs = [];
+  if (period === 'dod') {
+    const yest = addDays(date, -1);
+    const ts = getStatus(date, anchorId);
+    const ys = getStatus(yest, anchorId);
+    if (ts && ts !== 'live') {
+      const info = STREAM_STATUS[ts];
+      msgs.push({ level: ts === 'off' ? 'danger' : 'warn', icon: info.emoji,
+        text: `今日（${date}）${info.label}。${ts === 'off' ? '健康度评分跳过' : '数据可能受影响'}。` });
+    }
+    if (ys && ys !== 'live') {
+      const info = STREAM_STATUS[ys];
+      msgs.push({ level: ys === 'off' ? 'danger' : 'warn', icon: info.emoji,
+        text: `昨日（${yest}）${info.label}，环比对比${ys === 'off' ? '不适用' : '仅供参考'}。` });
+    }
+  } else {
+    const m = getMonday(date);
+    const lm = addDays(m, -7);
+    let thisOff = 0, lastOff = 0;
+    for (let i = 0; i < 7; i++) {
+      if (isOffDay(addDays(m, i), anchorId)) thisOff++;
+      if (isOffDay(addDays(lm, i), anchorId)) lastOff++;
+    }
+    if (thisOff > 0) msgs.push({ level: thisOff >= 3 ? 'danger' : 'warn', icon: '💤', text: `本周有 <strong>${thisOff}</strong> 天停播，周累计偏低，周均已跳过停播日。` });
+    if (lastOff > 0) msgs.push({ level: lastOff >= 3 ? 'danger' : 'warn', icon: '💤', text: `上周有 <strong>${lastOff}</strong> 天停播，上周累计偏低，环比可能虚高。` });
+  }
+  if (msgs.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = msgs.map(m =>
+    `<div class="alert-bar ${m.level === 'danger' ? 'danger' : ''}"><div class="alert-bar-icon">${m.icon}</div><div class="alert-bar-text">${m.text}</div></div>`
+  ).join('');
+}
+
+function renderWeeklyStatusAlert(anchorId, monday, lastMonday) {
+  const container = document.getElementById('weekly-status-alert');
+  const thisOffDays = [];
+  const lastOffDays = [];
+  for (let i = 0; i < 7; i++) {
+    if (isOffDay(addDays(monday, i), anchorId)) thisOffDays.push(addDays(monday, i));
+    if (isOffDay(addDays(lastMonday, i), anchorId)) lastOffDays.push(addDays(lastMonday, i));
+  }
+  const msgs = [];
+  if (thisOffDays.length > 0) {
+    msgs.push({
+      level: thisOffDays.length >= 3 ? 'danger' : 'warn',
+      icon: '💤',
+      text: `本周有 <strong>${thisOffDays.length}</strong> 天停播：${thisOffDays.join('、')}。周累计数据偏低，周均（ACU）已自动跳过停播日。`
+    });
+  }
+  if (lastOffDays.length > 0) {
+    msgs.push({
+      level: lastOffDays.length >= 3 ? 'danger' : 'warn',
+      icon: '💤',
+      text: `上周有 <strong>${lastOffDays.length}</strong> 天停播：${lastOffDays.join('、')}。上周累计偏低，环比可能虚高，请结合实际情况判断。`
+    });
+  }
+  if (msgs.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = msgs.map(m =>
+    `<div class="alert-bar ${m.level === 'danger' ? 'danger' : ''}"><div class="alert-bar-icon">${m.icon}</div><div class="alert-bar-text">${m.text}</div></div>`
+  ).join('');
+}
+
+function renderDaily() {
+  const anchorId = document.getElementById('daily-anchor').value;
+  const today = document.getElementById('daily-date').value;
+  if (!anchorId || !today) return;
+
+  const yesterday = addDays(today, -1);
+  const anchor = state.anchors.find(a => a.id === anchorId);
+  document.getElementById('daily-meta').textContent = `${anchor ? anchor.name : '—'} · ${today} vs ${yesterday}`;
+
+  // 状态警告
+  renderDailyStatusAlert(anchorId, today, yesterday);
+
+  const body = document.getElementById('daily-body');
+  body.innerHTML = '';
+  const declines = [];
+
+  METRICS.forEach(m => {
+    const curr = getMetric(today, anchorId, m);
+    const prev = getMetric(yesterday, anchorId, m);
+    const diff = curr - prev;
+    const dir = compareValues(prev, curr);
+    const icon = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '—';
+    const trendText = dir === 'up' ? '上升' : dir === 'down' ? '下降' : '持平';
+    const pctText = fmtPct(prev, curr);
+    const al = alertLevel(prev, curr);
+    const streak = consecutiveDeclineDays(today, anchorId, m);
+
+    let flameHtml = '';
+    if (streak >= state.settings.streakDays) {
+      flameHtml = `<span class="flame-tag" data-tip="连续 ${streak} 天下滑">🔥 ${streak}天</span>`;
+    }
+    let alertHtml = '';
+    if (al === 'alert') alertHtml = `<span class="flame-tag" style="margin-left:4px;">异常</span>`;
+    else if (al === 'warn') alertHtml = `<span class="flame-tag" style="margin-left:4px; background:var(--warn-bg); color:var(--warn);">警告</span>`;
+
+    if (dir === 'down') {
+      declines.push({ metric: m, prev, curr, diff, pctText, streak, alertLevel: al });
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = 'compare-row';
+    tr.innerHTML = `
+      <td class="metric-cell">${m}${flameHtml}${alertHtml}</td>
+      <td class="num">${fmtNum(prev)}</td>
+      <td class="num">${fmtNum(curr)}</td>
+      <td class="num change-${dir}">${fmtChange(diff)}</td>
+      <td class="num pct-cell ${dir}">${pctText}</td>
+      <td><span class="pill ${al === 'alert' ? 'down' : dir}">${icon} ${trendText}</span></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  renderReviewCards('daily', anchorId, today, declines);
+}
+
+// ============================================================
+// 渲染：周环比
+// ============================================================
+function renderWeekly() {
+  const anchorId = document.getElementById('weekly-anchor').value;
+  let d = document.getElementById('weekly-date').value;
+  if (!anchorId || !d) return;
+
+  const monday = getMonday(d);
+  if (monday !== d) {
+    document.getElementById('weekly-date').value = monday;
+    d = monday;
+  }
+  const lastMonday = addDays(d, -7);
+  const anchor = state.anchors.find(a => a.id === anchorId);
+  document.getElementById('weekly-meta').textContent =
+    `${anchor ? anchor.name : '—'} · ${d}~${addDays(d, 6)} vs ${lastMonday}~${addDays(lastMonday, 6)}`;
+
+  // 状态警告
+  renderWeeklyStatusAlert(anchorId, d, lastMonday);
+
+  const body = document.getElementById('weekly-body');
+  body.innerHTML = '';
+  const declines = [];
+
+  METRICS.forEach(m => {
+    const curr = getWeekMetric(d, anchorId, m);
+    const prev = getWeekMetric(lastMonday, anchorId, m);
+    const diff = curr - prev;
+    const dir = compareValues(prev, curr);
+    const icon = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '—';
+    const trendText = dir === 'up' ? '上升' : dir === 'down' ? '下降' : '持平';
+    const aggLabel = AVG_METRICS.has(m) ? '（周均）' : '（周累计）';
+    const pctText = fmtPct(prev, curr);
+    const al = alertLevel(prev, curr);
+
+    let alertHtml = '';
+    if (al === 'alert') alertHtml = `<span class="flame-tag" style="margin-left:6px;">异常</span>`;
+    else if (al === 'warn') alertHtml = `<span class="flame-tag" style="margin-left:6px; background:var(--warn-bg); color:var(--warn);">警告</span>`;
+
+    if (dir === 'down') {
+      declines.push({ metric: m, prev, curr, diff, pctText, aggLabel, alertLevel: al });
+    }
+
+    const tr = document.createElement('tr');
+    tr.className = 'compare-row';
+    tr.innerHTML = `
+      <td class="metric-cell">${m}<span style="color:var(--text-2);font-weight:400;margin-left:6px;font-size:11px;">${aggLabel}</span>${alertHtml}</td>
+      <td class="num">${fmtNum(prev)}</td>
+      <td class="num">${fmtNum(curr)}</td>
+      <td class="num change-${dir}">${fmtChange(diff)}</td>
+      <td class="num pct-cell ${dir}">${pctText}</td>
+      <td><span class="pill ${al === 'alert' ? 'down' : dir}">${icon} ${trendText}</span></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  renderReviewCards('weekly', anchorId, d, declines);
+}
+
+// ============================================================
+// 复盘卡片
+// ============================================================
+const STATUS_LABEL = { todo: '待跟进', doing: '进行中', done: '已解决' };
+
+function reviewKey(type, anchorId, date, metric) {
+  return `review::${type}::${date}::${anchorId}::${metric}`;
+}
+
+function getReview(key) {
+  return state.reviews[key] || { text: '', status: 'todo' };
+}
+
+function renderReviewCards(type, anchorId, dateStr, declines) {
+  const container = document.getElementById(`${type}-review-container`);
+  const countEl = document.getElementById(`${type}-review-count`);
+
+  if (declines.length === 0) {
+    countEl.textContent = '无下滑指标';
+    container.innerHTML = `<div class="review-empty">本期所有指标均未下滑，无需复盘</div>`;
+    return;
+  }
+  countEl.textContent = `${declines.length} 项下滑`;
+
+  const grid = document.createElement('div');
+  grid.className = 'review-grid';
+
+  declines.forEach(d => {
+    const key = reviewKey(type, anchorId, dateStr, d.metric);
+    const review = getReview(key);
+    const aggLabel = d.aggLabel || '';
+    const streakHtml = d.streak >= state.settings.streakDays
+      ? `<span class="flame-tag" style="margin-left:6px;">🔥 ${d.streak}天</span>` : '';
+    const alertBadge = d.alertLevel === 'alert'
+      ? `<span class="flame-tag" style="margin-left:6px;">异常</span>`
+      : d.alertLevel === 'warn'
+      ? `<span class="flame-tag" style="margin-left:6px; background:var(--warn-bg); color:var(--warn);">警告</span>`
+      : '';
+
+    const card = document.createElement('div');
+    card.className = 'review-card';
+    card.innerHTML = `
+      <div class="review-card-head">
+        <div class="review-metric-name">${d.metric}${aggLabel ? `<span style="color:var(--text-2);font-weight:400;margin-left:6px;font-size:11px;">${aggLabel}</span>` : ''}${streakHtml}${alertBadge}</div>
+        <div class="review-pct">${d.pctText}</div>
+      </div>
+      <div class="review-detail">
+        <span>${fmtNum(d.prev)}</span><span class="arrow">→</span><span>${fmtNum(d.curr)}</span>
+        <span style="margin-left:8px;color:var(--down);">${fmtChange(d.diff)}</span>
+      </div>
+      <textarea class="review-textarea" placeholder="记录下滑原因分析与改进动作…如：开播时间晚了 30 分钟、互动话题偏冷、流量推荐减少等"></textarea>
+      <div class="review-card-foot">
+        <div class="review-status">
+          <button class="status-btn todo" data-status="todo">待跟进</button>
+          <button class="status-btn doing" data-status="doing">进行中</button>
+          <button class="status-btn done" data-status="done">已解决</button>
+        </div>
+        <span class="review-saved-tag">✓ 已保存</span>
+      </div>
+    `;
+
+    const textarea = card.querySelector('.review-textarea');
+    const savedTag = card.querySelector('.review-saved-tag');
+    textarea.value = review.text;
+
+    // 状态按钮
+    card.querySelectorAll('.status-btn').forEach(btn => {
+      if (btn.dataset.status === review.status) btn.classList.add('active');
+      btn.addEventListener('click', async () => {
+        card.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const cur = getReview(key);
+        if (cur.text || btn.dataset.status !== 'todo') {
+          state.reviews[key] = { text: cur.text, status: btn.dataset.status };
+          await persist('reviews');
+          savedTag.classList.add('show');
+          setTimeout(() => savedTag.classList.remove('show'), 1500);
+          updateReviewBadge();
+        }
+      });
+    });
+
+    let saveTimer = null;
+    textarea.addEventListener('input', () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(async () => {
+        const val = textarea.value.trim();
+        const cur = getReview(key);
+        const activeBtn = card.querySelector('.status-btn.active');
+        const status = activeBtn ? activeBtn.dataset.status : cur.status;
+        if (val) {
+          state.reviews[key] = { text: val, status };
+          await persist('reviews');
+        } else {
+          await deleteReview(key);
+        }
+        savedTag.classList.add('show');
+        setTimeout(() => savedTag.classList.remove('show'), 1500);
+        updateReviewBadge();
+      }, 500);
+    });
+
+    grid.appendChild(card);
+  });
+
+  container.innerHTML = '';
+  container.appendChild(grid);
+}
+
+// ============================================================
+// 复盘汇总页
+// ============================================================
+function updateReviewBadge() {
+  const todoCount = Object.values(state.reviews).filter(r => r.text && r.status === 'todo').length;
+  const badge = document.getElementById('tab-review-badge');
+  if (todoCount > 0) {
+    badge.textContent = todoCount;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function renderReviewFilters() {
+  // 填充经纪人下拉
+  const brokerSel = document.getElementById('review-broker-filter');
+  if (brokerSel) {
+    const prevBroker = brokerSel.value;
+    brokerSel.innerHTML = '<option value="all">全部经纪人</option><option value="">未分配</option>';
+    state.brokers.forEach(b => brokerSel.add(new Option(b.name, b.id)));
+    if (prevBroker && Array.from(brokerSel.options).some(o => o.value === prevBroker)) brokerSel.value = prevBroker;
+  }
+
+  // 填充主播下拉（根据经纪人筛选）
+  const anchorSel = document.getElementById('review-anchor-filter');
+  if (anchorSel) {
+    const prevAnchor = anchorSel.value;
+    const brokerVal = brokerSel ? brokerSel.value : 'all';
+    let visibleAnchors = state.anchors;
+    if (brokerVal && brokerVal !== 'all') {
+      visibleAnchors = visibleAnchors.filter(a => (a.brokerId || '') === brokerVal);
+    }
+    anchorSel.innerHTML = '<option value="all">全部主播</option>';
+    visibleAnchors.forEach(a => anchorSel.add(new Option(a.name, a.id)));
+    const stillValid = Array.from(anchorSel.options).some(o => o.value === prevAnchor);
+    anchorSel.value = stillValid ? prevAnchor : 'all';
+    reviewFilters.anchor = anchorSel.value;
+  }
+}
+
+function renderReviewList() {
+  renderReviewFilters();
+
+  // 收集所有有文字的复盘
+  const items = Object.entries(state.reviews)
+    .filter(([k, v]) => v.text && v.text.trim())
+    .map(([k, v]) => {
+      // k: review::type::date::anchorId::metric
+      const parts = k.split('::');
+      const type = parts[1];
+      const date = parts[2];
+      const anchorId = parts[3];
+      const metric = parts[4];
+      const anchor = state.anchors.find(a => a.id === anchorId);
+      return {
+        key: k, type, date, anchorId, metric,
+        anchorName: anchor ? anchor.name : '已删除',
+        text: v.text, status: v.status || 'todo'
+      };
+    })
+    .filter(i => {
+      if (reviewFilters.status !== 'all' && i.status !== reviewFilters.status) return false;
+      if (reviewFilters.anchor !== 'all' && i.anchorId !== reviewFilters.anchor) return false;
+      if (reviewFilters.metric !== 'all' && i.metric !== reviewFilters.metric) return false;
+      if (reviewFilters.type !== 'all' && i.type !== reviewFilters.type) return false;
+      // 日期筛选：日环比精确匹配日期；周环比匹配所在周的周一
+      if (reviewFilters.date) {
+        if (i.type === 'daily') {
+          if (i.date !== reviewFilters.date) return false;
+        } else {
+          // weekly：记录的 date 是该周周一，判断 reviewFilters.date 是否落在同一周
+          const recMonday = i.date;
+          const selMonday = getMonday(reviewFilters.date);
+          if (recMonday !== selMonday) return false;
+        }
+      }
+      if (reviewFilters.week) {
+        // week 格式 "YYYY-Www"，转成周一日期对比
+        const selMonday = isoWeekToMonday(reviewFilters.week);
+        if (i.type === 'daily') {
+          // 日环比：该日是否落在所选周内
+          const dayMonday = getMonday(i.date);
+          if (dayMonday !== selMonday) return false;
+        } else {
+          if (i.date !== selMonday) return false;
+        }
+      }
+      return true;
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  // 统计
+  const allReviews = Object.values(state.reviews).filter(r => r.text);
+  const stats = {
+    total: allReviews.length,
+    todo: allReviews.filter(r => r.status === 'todo').length,
+    doing: allReviews.filter(r => r.status === 'doing').length,
+    done: allReviews.filter(r => r.status === 'done').length
+  };
+  document.getElementById('review-stats').innerHTML = `
+    <span class="stat-mini">共 ${stats.total} 条</span>
+    <span class="stat-mini" style="color:var(--warn)">待跟进 ${stats.todo}</span>
+    <span class="stat-mini" style="color:var(--neutral)">进行中 ${stats.doing}</span>
+    <span class="stat-mini" style="color:var(--up)">已解决 ${stats.done}</span>
+    <span class="stat-mini">当前筛选 ${items.length} 条</span>
+  `;
+
+  const container = document.getElementById('review-list-container');
+  if (items.length === 0) {
+    container.innerHTML = `<div class="empty">暂无符合条件的复盘记录</div>`;
+    return;
+  }
+
+  container.innerHTML = items.map(i => {
+    const typeLabel = i.type === 'daily' ? '日环比' : '周环比';
+    return `
+      <div class="review-list-item status-${i.status}" data-key="${i.key}">
+        <div class="review-list-head">
+          <div class="review-list-title-row">
+            <strong style="font-size:14px;">${i.metric}</strong>
+            <span class="review-list-status ${i.status}">${STATUS_LABEL[i.status]}</span>
+            <span style="font-size:12px; color:var(--text-2);">${typeLabel}</span>
+          </div>
+          <div class="review-list-meta">
+            <span>👤 ${i.anchorName}</span>
+            <span>📅 ${i.date}</span>
+          </div>
+        </div>
+        <div class="review-list-text">${escapeHtml(i.text)}</div>
+        <div style="display:flex; gap:6px; margin-top:10px;">
+          <button class="status-btn todo ${i.status==='todo'?'active':''}" data-set="todo">待跟进</button>
+          <button class="status-btn doing ${i.status==='doing'?'active':''}" data-set="doing">进行中</button>
+          <button class="status-btn done ${i.status==='done'?'active':''}" data-set="done">已解决</button>
+          <button class="status-btn" style="margin-left:auto;" data-del="1">删除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // 状态切换
+  container.querySelectorAll('.review-list-item').forEach(item => {
+    const key = item.dataset.key;
+    item.querySelectorAll('button[data-set]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        state.reviews[key].status = btn.dataset.set;
+        await persist('reviews');
+        renderReviewList();
+        updateReviewBadge();
+        toast('状态已更新');
+      });
+    });
+    const delBtn = item.querySelector('button[data-del]');
+    if (delBtn) {
+      delBtn.addEventListener('click', async () => {
+        if (!confirm('删除这条复盘记录？')) return;
+        await deleteReview(key);
+        renderReviewList();
+        updateReviewBadge();
+        toast('已删除');
+      });
+    }
+  });
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// 筛选事件（静态 chip：状态、类型、指标）
+document.querySelectorAll('#page-reviews .filter-chip[data-filter]').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const f = chip.dataset.filter;
+    reviewFilters[f] = chip.dataset.value;
+    document.querySelectorAll(`#page-reviews .filter-chip[data-filter="${f}"]`).forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+
+    // 类型切换时控制日期/周期选择器显隐
+    if (f === 'type') {
+      const dw = document.getElementById('review-date-wrap');
+      const ww = document.getElementById('review-week-wrap');
+      if (chip.dataset.value === 'daily') {
+        dw.style.display = 'flex'; ww.style.display = 'none';
+        reviewFilters.week = '';
+        document.getElementById('review-week-input').value = '';
+      } else if (chip.dataset.value === 'weekly') {
+        dw.style.display = 'none'; ww.style.display = 'flex';
+        reviewFilters.date = '';
+        document.getElementById('review-date-input').value = '';
+      } else {
+        dw.style.display = 'none'; ww.style.display = 'none';
+        reviewFilters.date = ''; reviewFilters.week = '';
+        document.getElementById('review-date-input').value = '';
+        document.getElementById('review-week-input').value = '';
+      }
+    }
+    renderReviewList();
+  });
+});
+
+// 经纪人下拉 → 刷新主播下拉
+document.getElementById('review-broker-filter').addEventListener('change', () => {
+  renderReviewFilters();   // 重新填充主播下拉
+  renderReviewList();
+});
+// 主播下拉
+document.getElementById('review-anchor-filter').addEventListener('change', () => {
+  reviewFilters.anchor = document.getElementById('review-anchor-filter').value;
+  renderReviewList();
+});
+// 日期选择
+document.getElementById('review-date-input').addEventListener('change', e => {
+  reviewFilters.date = e.target.value;
+  renderReviewList();
+});
+document.getElementById('review-date-clear').addEventListener('click', () => {
+  reviewFilters.date = '';
+  document.getElementById('review-date-input').value = '';
+  renderReviewList();
+});
+// 周期选择
+document.getElementById('review-week-input').addEventListener('change', e => {
+  reviewFilters.week = e.target.value;
+  renderReviewList();
+});
+document.getElementById('review-week-clear').addEventListener('click', () => {
+  reviewFilters.week = '';
+  document.getElementById('review-week-input').value = '';
+  renderReviewList();
+});
+
+// ============================================================
+// 渲染：主播对比
+// ============================================================
+function renderCompare() {
+  const period = document.getElementById('cmp-period').value;
+  const date = document.getElementById('cmp-date').value;
+  const metric = document.getElementById('cmp-metric').value;
+  document.getElementById('cmp-metric-name').textContent = metric;
+  if (!date) return;
+
+  // 表头按维度切换
+  document.getElementById('cmp-th-prev').textContent = period === 'dod' ? '昨日' : '上周';
+  document.getElementById('cmp-th-curr').textContent = period === 'dod' ? '今日' : '本周';
+
+  let label;
+  if (period === 'dod') {
+    label = `日环比 · ${date} vs ${addDays(date, -1)}`;
+  } else {
+    const monday = getMonday(date);
+    if (monday !== date) document.getElementById('cmp-date').value = monday;
+    label = `周环比 · ${monday}~${addDays(monday, 6)} vs ${addDays(monday, -7)}~${addDays(monday, -1)}`;
+  }
+  document.getElementById('cmp-meta').textContent = label;
+
+  const brokerFilter = document.getElementById('cmp-broker-filter').value;
+  const scopedAnchors = brokerFilter === 'all'
+    ? state.anchors
+    : state.anchors.filter(a => (a.brokerId || '') === brokerFilter);
+
+  const rows = scopedAnchors.map(a => {
+    let curr, prev;
+    if (period === 'dod') {
+      curr = getMetric(date, a.id, metric);
+      prev = getMetric(addDays(date, -1), a.id, metric);
+    } else {
+      const monday = getMonday(date);
+      curr = getWeekMetric(monday, a.id, metric);
+      prev = getWeekMetric(addDays(monday, -7), a.id, metric);
+    }
+    return { anchor: a, curr, prev };
+  }).sort((x, y) => y.curr - x.curr);
+
+  const body = document.getElementById('cmp-body');
+  body.innerHTML = '';
+  rows.forEach((r, i) => {
+    const diff = r.curr - r.prev;
+    const dir = compareValues(r.prev, r.curr);
+    const icon = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '—';
+    const trendText = dir === 'up' ? '上升' : dir === 'down' ? '下降' : '持平';
+    const al = alertLevel(r.prev, r.curr);
+    let alertHtml = '';
+    if (al === 'alert') alertHtml = ` <span class="flame-tag">异常</span>`;
+    else if (al === 'warn') alertHtml = ` <span class="flame-tag" style="background:var(--warn-bg); color:var(--warn);">警告</span>`;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="label">#${i + 1}</td>
+      <td class="metric-cell">${r.anchor.name}${alertHtml}</td>
+      <td class="num">${fmtNum(r.prev)}</td>
+      <td class="num">${fmtNum(r.curr)}</td>
+      <td class="num change-${dir}">${fmtChange(diff)}</td>
+      <td class="num pct-cell ${dir}">${fmtPct(r.prev, r.curr)}</td>
+      <td><span class="pill ${al === 'alert' ? 'down' : dir}">${icon} ${trendText}</span></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const foot = document.getElementById('cmp-foot');
+  foot.innerHTML = '';
+  if (rows.length > 0) {
+    let totalCurr, totalPrev, aggLabel;
+    if (AVG_METRICS.has(metric)) {
+      totalCurr = rows.reduce((s, r) => s + r.curr, 0) / rows.length;
+      totalPrev = rows.reduce((s, r) => s + r.prev, 0) / rows.length;
+      aggLabel = '全员均值';
+    } else {
+      totalCurr = rows.reduce((s, r) => s + r.curr, 0);
+      totalPrev = rows.reduce((s, r) => s + r.prev, 0);
+      aggLabel = '全员合计';
+    }
+    const diff = totalCurr - totalPrev;
+    const dir = compareValues(totalPrev, totalCurr);
+    const icon = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '—';
+    const trendText = dir === 'up' ? '上升' : dir === 'down' ? '下降' : '持平';
+
+    const tr = document.createElement('tr');
+    tr.style.background = 'var(--bg-2)';
+    tr.style.fontWeight = '600';
+    tr.innerHTML = `
+      <td colspan="2" class="metric-cell">${aggLabel}</td>
+      <td class="num">${fmtNum(totalPrev)}</td>
+      <td class="num">${fmtNum(totalCurr)}</td>
+      <td class="num change-${dir}">${fmtChange(diff)}</td>
+      <td class="num pct-cell ${dir}">${fmtPct(totalPrev, totalCurr)}</td>
+      <td><span class="pill ${dir}">${icon} ${trendText}</span></td>
+    `;
+    foot.appendChild(tr);
+  }
+}
+
+// ============================================================
+// 渲染：主播管理
+// ============================================================
+// ============================================================
+// 经纪人管理
+// ============================================================
+function renderBrokers() {
+  const list = document.getElementById('broker-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (state.brokers.length === 0) {
+    list.innerHTML = `<div class="empty" style="padding:20px;">还没有经纪人，先在上方添加</div>`;
+    return;
+  }
+  state.brokers.forEach(b => {
+    const anchorCount = state.anchors.filter(a => a.brokerId === b.id).length;
+    const item = document.createElement('div');
+    item.className = 'anchor-item';
+    item.innerHTML = `
+      <div class="anchor-name">${escapeHtml(b.name)}</div>
+      <div class="anchor-platform">负责 ${anchorCount} 位主播</div>
+      ${b.note ? `<span style="font-size:12px; color:var(--text-2);">${escapeHtml(b.note)}</span>` : ''}
+      <div class="anchor-actions"><button class="icon-btn" data-id="${b.id}">×</button></div>
+    `;
+    item.querySelector('.icon-btn').addEventListener('click', async () => {
+      if (!confirm(`删除经纪人 ${b.name}？其名下的 ${anchorCount} 位主播将变为"未分配"。`)) return;
+      await deleteBroker(b.id);
+      populateBrokerSelects();
+      renderAll();
+      toast('经纪人已删除');
+    });
+    list.appendChild(item);
+  });
+}
+
+function populateBrokerSelects() {
+  // 添加主播表单 / 主播筛选 / 总览 / 对比 / 导出 等地方的经纪人下拉
+  const targets = [
+    { id: 'new-anchor-broker', includeAll: false, includeNone: true },
+    { id: 'anchor-broker-filter', includeAll: true, includeNone: true },
+    { id: 'dash-broker-filter', includeAll: true, includeNone: true },
+    { id: 'cmp-broker-filter', includeAll: true, includeNone: true },
+    { id: 'daily-export-broker', includeAll: false, includeNone: false },
+    { id: 'weekly-export-broker', includeAll: false, includeNone: false },
+    { id: 'daily-broker-filter', includeAll: true, includeNone: true },
+    { id: 'weekly-broker-filter', includeAll: true, includeNone: true },
+    { id: 'entry-broker-filter', includeAll: true, includeNone: true },
+    { id: 'bulk-broker-filter', includeAll: true, includeNone: true },
+  ];
+  targets.forEach(t => {
+    const sel = document.getElementById(t.id);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    if (t.includeAll) sel.add(new Option('所有经纪人', 'all'));
+    if (t.includeNone) sel.add(new Option(t.includeAll ? '未分配' : '— 未分配 —', ''));
+    state.brokers.forEach(b => sel.add(new Option(b.name, b.id)));
+    if (prev) {
+      const has = Array.from(sel.options).some(o => o.value === prev);
+      if (has) sel.value = prev;
+    }
+  });
+}
+
+document.getElementById('add-broker').addEventListener('click', async () => {
+  const name = document.getElementById('new-broker-name').value.trim();
+  const note = document.getElementById('new-broker-note').value.trim();
+  if (!name) { toast('经纪人姓名必填', 'error'); return; }
+  if (state.brokers.find(b => b.name === name)) { toast('经纪人已存在', 'error'); return; }
+  state.brokers.push({ id: genId(), name, note });
+  await persist('brokers');
+  document.getElementById('new-broker-name').value = '';
+  document.getElementById('new-broker-note').value = '';
+  populateBrokerSelects();
+  renderAll();
+  toast('经纪人已添加');
+});
+
+// ============================================================
+// 主播管理
+// ============================================================
+function renderAnchors() {
+  const list = document.getElementById('anchor-list');
+  list.innerHTML = '';
+  if (state.anchors.length === 0) {
+    list.innerHTML = `<div class="empty">还没有主播，先在上方添加一个</div>`;
+    return;
+  }
+
+  // 筛选
+  const search = (document.getElementById('anchor-search')?.value || '').trim().toLowerCase();
+  const brokerFilter = document.getElementById('anchor-broker-filter')?.value || 'all';
+
+  const filtered = state.anchors.filter(a => {
+    if (brokerFilter !== 'all') {
+      if ((a.brokerId || '') !== brokerFilter) return false;
+    }
+    if (search) {
+      const hay = `${a.name} ${a.douyinId || ''}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = `<div class="empty">没有符合条件的主播</div>`;
+    return;
+  }
+
+  filtered.forEach(a => {
+    const broker = state.brokers.find(b => b.id === a.brokerId);
+    const item = document.createElement('div');
+    item.className = 'anchor-item';
+    item.innerHTML = `
+      <div class="anchor-name">${escapeHtml(a.name)}</div>
+      ${a.douyinId ? `<span style="font-size:12px; color:var(--text-2); font-family:'JetBrains Mono',monospace;">@${escapeHtml(a.douyinId)}</span>` : ''}
+      <div class="anchor-platform">${escapeHtml(a.platform || '—')}</div>
+      <span style="font-size:12px; color:${broker ? 'var(--neutral)' : 'var(--text-3)'};">${broker ? '🧑‍💼 ' + escapeHtml(broker.name) : '未分配经纪人'}</span>
+      <div class="anchor-actions">
+        <button class="icon-btn edit-btn" data-id="${a.id}" style="font-size:12px;">编辑</button>
+        <button class="icon-btn" data-id="${a.id}">×</button>
+      </div>
+    `;
+    item.querySelector('.edit-btn').addEventListener('click', () => openEditAnchorDialog(a));
+    item.querySelectorAll('.icon-btn:not(.edit-btn)').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (state.anchors.length <= 1) { toast('至少保留一个主播', 'error'); return; }
+        if (!confirm(`删除主播 ${a.name}？相关历史数据和复盘记录都会被清空。`)) return;
+        await deleteAnchorData(a.id);
+        populateAnchorSelects();
+        renderAll();
+        toast('已删除');
+      });
+    });
+    list.appendChild(item);
+  });
+}
+
+// 编辑主播对话框
+let _editingAnchorId = null;
+function openEditAnchorDialog(a) {
+  _editingAnchorId = a.id;
+  document.getElementById('edit-anchor-name').value = a.name || '';
+  document.getElementById('edit-anchor-douyin').value = a.douyinId || '';
+  document.getElementById('edit-anchor-platform').value = a.platform || '';
+
+  // 填充经纪人下拉
+  const sel = document.getElementById('edit-anchor-broker');
+  sel.innerHTML = '';
+  sel.add(new Option('— 未分配 —', ''));
+  state.brokers.forEach(b => sel.add(new Option(b.name, b.id)));
+  sel.value = a.brokerId || '';
+
+  document.getElementById('edit-anchor-modal').classList.add('show');
+  setTimeout(() => document.getElementById('edit-anchor-name').focus(), 50);
+}
+
+function closeEditAnchorDialog() {
+  document.getElementById('edit-anchor-modal').classList.remove('show');
+  _editingAnchorId = null;
+}
+
+document.getElementById('edit-anchor-cancel').addEventListener('click', closeEditAnchorDialog);
+document.getElementById('edit-anchor-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'edit-anchor-modal') closeEditAnchorDialog();  // 点遮罩关闭
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('edit-anchor-modal').classList.contains('show')) {
+    closeEditAnchorDialog();
+  }
+});
+
+document.getElementById('edit-anchor-save').addEventListener('click', async () => {
+  if (!_editingAnchorId) return;
+  const a = state.anchors.find(x => x.id === _editingAnchorId);
+  if (!a) { closeEditAnchorDialog(); return; }
+
+  const newName = document.getElementById('edit-anchor-name').value.trim();
+  const newDouyin = document.getElementById('edit-anchor-douyin').value.trim();
+  const newPlatform = document.getElementById('edit-anchor-platform').value.trim();
+  const newBroker = document.getElementById('edit-anchor-broker').value;
+
+  if (!newName) { toast('昵称不能为空', 'error'); return; }
+  if (state.anchors.find(x => x.id !== a.id && x.name === newName)) {
+    toast('该昵称已被其他主播使用', 'error'); return;
+  }
+  if (newDouyin && state.anchors.find(x => x.id !== a.id && x.douyinId === newDouyin)) {
+    toast('该抖音号已绑定其他主播', 'error'); return;
+  }
+
+  a.name = newName;
+  a.douyinId = newDouyin;
+  a.platform = newPlatform || '抖音';
+  a.brokerId = newBroker;
+  await persist('anchors');
+  populateAnchorSelects();
+  renderAll();
+  closeEditAnchorDialog();
+  toast('主播信息已更新');
+});
+
+document.getElementById('add-anchor').addEventListener('click', async () => {
+  const name = document.getElementById('new-anchor-name').value.trim();
+  const douyinId = document.getElementById('new-anchor-douyin').value.trim();
+  const platform = document.getElementById('new-anchor-platform').value.trim();
+  const brokerId = document.getElementById('new-anchor-broker').value;
+  if (!name) { toast('主播昵称必填', 'error'); return; }
+  if (state.anchors.find(a => a.name === name)) { toast('该主播昵称已存在', 'error'); return; }
+  if (douyinId && state.anchors.find(a => a.douyinId === douyinId)) {
+    toast('该抖音号已绑定其他主播', 'error'); return;
+  }
+  state.anchors.push({ id: genId(), name, douyinId, platform: platform || '抖音', brokerId });
+  await persist('anchors');
+  document.getElementById('new-anchor-name').value = '';
+  document.getElementById('new-anchor-douyin').value = '';
+  document.getElementById('new-anchor-platform').value = '';
+  document.getElementById('new-anchor-broker').value = '';
+  populateAnchorSelects();
+  renderAll();
+  toast('主播已添加');
+});
+
+// 搜索 / 筛选触发
+document.getElementById('anchor-search').addEventListener('input', renderAnchors);
+document.getElementById('anchor-broker-filter').addEventListener('change', renderAnchors);
+
+// ============================================================
+// 设置
+// ============================================================
+function loadSettingsUI() {
+  document.getElementById('setting-alert-pct').value = state.settings.alertPct;
+  document.getElementById('setting-warn-pct').value = state.settings.warnPct;
+  document.getElementById('setting-streak-days').value = state.settings.streakDays;
+}
+
+document.getElementById('save-settings').addEventListener('click', async () => {
+  const alertP = Number(document.getElementById('setting-alert-pct').value);
+  const warnP = Number(document.getElementById('setting-warn-pct').value);
+  const streak = Number(document.getElementById('setting-streak-days').value);
+  if (alertP <= warnP) { toast('异常阈值需大于警告阈值', 'error'); return; }
+  state.settings = { alertPct: alertP, warnPct: warnP, streakDays: streak };
+  await persist('settings');
+  toast('设置已保存');
+  renderAll();
+});
+
+// ============================================================
+// 导入 / 导出 / 清空
+// ============================================================
+document.getElementById('export-data').addEventListener('click', () => {
+  const data = JSON.stringify({
+    anchors: state.anchors,
+    brokers: state.brokers,
+    records: state.records,
+    reviews: state.reviews,
+    settings: state.settings
+  }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `streamer-metrics-${fmtDate(new Date())}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  localStorage.setItem(BACKUP_KEY, Date.now());
+  updateLastExportInfo();
+  checkBackupReminder();
+  toast('已导出');
+});
+
+document.getElementById('import-file').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data.anchors || !data.records) throw new Error('文件格式不正确');
+    if (!confirm('导入将覆盖现有数据，确定继续？')) { e.target.value = ''; return; }
+    // 兼容旧版 reviews
+    const reviews = data.reviews || {};
+    Object.keys(reviews).forEach(k => {
+      if (typeof reviews[k] === 'string') reviews[k] = { text: reviews[k], status: 'todo' };
+    });
+    state.anchors = data.anchors;
+    state.brokers = data.brokers || [];
+    state.records = data.records;
+    state.reviews = reviews;
+    state.settings = { ...DEFAULT_SETTINGS, ...(data.settings || {}) };
+    await persist('anchors');
+    await persist('brokers');
+    await persist('records');
+    await persist('reviews');
+    await persist('settings');
+    populateAnchorSelects();
+    loadSettingsUI();
+    renderAll();
+    toast('数据已导入');
+  } catch (err) {
+    toast('导入失败：' + err.message, 'error');
+  }
+  e.target.value = '';
+});
+
+document.getElementById('clear-all').addEventListener('click', async () => {
+  if (!confirm('确定清空 Supabase 中的所有数据？此操作不可恢复。')) return;
+  if (!isAdmin()) { toast('仅管理员可清空数据', 'error'); return; }
+  await Promise.all([
+    _sb.from('records').delete().neq('anchor_id', '___'),
+    _sb.from('reviews').delete().neq('key', '___'),
+    _sb.from('anchors').delete().neq('id', '___'),
+    _sb.from('brokers').delete().neq('id', '___'),
+  ]);
+  state.anchors = []; state.brokers = []; state.records = {}; state.reviews = {};
+  state.settings = { ...DEFAULT_SETTINGS };
+  populateAnchorSelects(); loadSettingsUI(); renderAll();
+  toast('已清空');
+});
+
+// ============================================================
+// 渲染入口
+// ============================================================
+function renderAll() {
+  renderDashboard();
+  renderEntryHistory();
+  renderBulkTable();
+  renderDaily();
+  renderWeekly();
+  renderCompare();
+  renderReviewList();
+  renderBrokers();
+  renderAnchors();
+  updateReviewBadge();
+  updateAlertBell();
+}
+
+// ============================================================
+// #3 今日预警铃铛
+// ============================================================
+function calcTodayAnomalies() {
+  const today = fmtDate(new Date());
+  const items = [];
+  state.anchors.forEach(a => {
+    const todayRec = getRecord(today, a.id);
+    if (todayRec && todayRec['_status'] === 'off') return; // 停播日跳过
+    METRICS.forEach(m => {
+      const curr = getMetric(today, a.id, m);
+      const prev = getMetric(addDays(today, -1), a.id, m);
+      const al = alertLevel(prev, curr);
+      if (al === 'alert' || al === 'warn') {
+        items.push({ anchor: a, metric: m, curr, prev, level: al,
+          pct: fmtPct(prev, curr) });
+      }
+    });
+  });
+  return items;
+}
+
+function updateAlertBell() {
+  const items = calcTodayAnomalies();
+  const badge = document.getElementById('alert-bell-badge');
+  const btn = document.getElementById('alert-bell-btn');
+  if (!badge || !btn) return;
+  if (items.length > 0) {
+    badge.textContent = items.length;
+    badge.classList.remove('hidden');
+    btn.style.color = 'var(--down)';
+  } else {
+    badge.classList.add('hidden');
+    btn.style.color = '';
+  }
+}
+
+document.getElementById('alert-bell-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const dd = document.getElementById('alert-bell-dropdown');
+  if (dd.style.display !== 'none') { dd.style.display = 'none'; return; }
+  const items = calcTodayAnomalies();
+  const today = fmtDate(new Date());
+  if (items.length === 0) {
+    dd.innerHTML = `<div class="bell-item" style="color:var(--up)">✅ 今日（${today}）所有主播指标正常</div>`;
+  } else {
+    const grouped = {};
+    items.forEach(i => {
+      if (!grouped[i.anchor.id]) grouped[i.anchor.id] = { anchor: i.anchor, items: [] };
+      grouped[i.anchor.id].items.push(i);
+    });
+    dd.innerHTML = `<div style="padding:8px 16px 6px; font-size:11px; color:var(--text-2); font-weight:600; text-transform:uppercase; letter-spacing:.06em;">今日预警 · ${today}</div>` +
+      Object.values(grouped).map(g => `
+        <div class="bell-item">
+          <div class="bell-item-anchor">👤 ${escapeHtml(g.anchor.name)}</div>
+          ${g.items.map(i => `<div class="bell-item-meta">
+            ${i.metric}
+            <span style="color:${i.level==='alert'?'var(--down)':'var(--warn)'}; margin-left:4px;">${i.pct}</span>
+            <span class="flame-tag" style="margin-left:4px; ${i.level==='warn'?'background:var(--warn-bg);color:var(--warn);':''}">${i.level==='alert'?'异常':'警告'}</span>
+          </div>`).join('')}
+        </div>
+      `).join('');
+  }
+  dd.style.display = 'block';
+});
+
+document.addEventListener('click', () => {
+  const dd = document.getElementById('alert-bell-dropdown');
+  if (dd) dd.style.display = 'none';
+});
+
+// ============================================================
+// #2 总览卡片墙
+// ============================================================
+let dashViewMode = 'single'; // 'single' | 'cards'
+
+function switchDashView(mode) {
+  dashViewMode = mode;
+  const single = document.getElementById('dash-single-view');
+  const wall = document.getElementById('dash-card-wall');
+  const btn = document.getElementById('dash-view-toggle');
+  // 卡片墙不需要经纪人/主播/日期之外的控件
+  const singleOnlyControls = ['dash-anchor', 'dash-period', 'dash-date-control',
+    'dash-week-control', 'dash-quick-control', 'dash-export'];
+  if (mode === 'cards') {
+    single.style.display = 'none';
+    wall.style.display = 'block';
+    btn.textContent = '📊 单播视图';
+    singleOnlyControls.forEach(id => {
+      const el = document.getElementById(id)?.closest('.control');
+      if (el) el.style.visibility = 'hidden';
+    });
+    renderDashCardWall();
+  } else {
+    single.style.display = 'block';
+    wall.style.display = 'none';
+    btn.textContent = '🃏 卡片墙';
+    singleOnlyControls.forEach(id => {
+      const el = document.getElementById(id)?.closest('.control');
+      if (el) el.style.visibility = '';
+    });
+    renderDashboard();
+  }
+}
+
+function renderDashCardWall() {
+  const date = document.getElementById('dash-date').value;
+  const period = document.getElementById('dash-period').value;
+  const brokerFilter = document.getElementById('dash-broker-filter').value;
+  const wall = document.getElementById('dash-card-wall');
+  if (!wall) return;
+
+  let anchors = state.anchors;
+  if (brokerFilter && brokerFilter !== 'all') {
+    anchors = anchors.filter(a => a.brokerId === brokerFilter);
+  }
+  if (!date) { wall.innerHTML = `<div class="empty">请先选择基准日期</div>`; return; }
+  if (anchors.length === 0) { wall.innerHTML = `<div class="empty">没有符合条件的主播</div>`; return; }
+
+  const cards = anchors.map(a => {
+    const health = calcHealth(period, a.id, date);
+    const broker = state.brokers.find(b => b.id === a.brokerId);
+    let alertCount = 0, warnCount = 0;
+    METRICS.forEach(m => {
+      let curr, prev;
+      if (period === 'dod') {
+        curr = getMetric(date, a.id, m);
+        prev = getMetric(addDays(date, -1), a.id, m);
+      } else {
+        const tm = getMonday(date);
+        curr = getWeekMetric(tm, a.id, m);
+        prev = getWeekMetric(addDays(tm, -7), a.id, m);
+      }
+      const al = alertLevel(prev, curr);
+      if (al === 'alert') alertCount++;
+      else if (al === 'warn') warnCount++;
+    });
+    const isOff = period === 'dod' && getRecord(date, a.id)?._status === 'off';
+    const scoreColor = isOff ? 'var(--text-2)'
+      : health.level === 'excellent' ? 'var(--up)'
+      : health.level === 'good' ? 'var(--neutral)'
+      : health.level === 'warn' ? 'var(--warn)'
+      : health.score !== null ? 'var(--down)' : 'var(--text-3)';
+    const scoreDisplay = isOff ? '💤' : (health.score !== null ? health.score : '—');
+    const scoreLabel = isOff ? '停播中' : (health.label || '暂无数据');
+
+    return `<div class="anchor-wall-card" data-id="${a.id}">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(a.name)}</div>
+          ${a.douyinId ? `<div style="font-size:11px; color:var(--text-2); font-family:'JetBrains Mono',monospace; margin-top:2px;">@${escapeHtml(a.douyinId)}</div>` : ''}
+          ${broker ? `<div style="font-size:11px; color:var(--text-1); margin-top:2px;">🧑‍💼 ${escapeHtml(broker.name)}</div>` : ''}
+        </div>
+        <div style="text-align:right; margin-left:8px;">
+          <div class="wall-score" style="color:${scoreColor};">${scoreDisplay}</div>
+          <div style="font-size:10px; color:var(--text-2); margin-top:2px;">${scoreLabel}</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:5px; flex-wrap:wrap;">
+        ${alertCount > 0 ? `<span class="flame-tag">⚠️ 异常 ${alertCount}</span>` : ''}
+        ${warnCount > 0 ? `<span class="flame-tag" style="background:var(--warn-bg);color:var(--warn);">⚡ 警告 ${warnCount}</span>` : ''}
+        ${alertCount === 0 && warnCount === 0 && !isOff ? `<span style="font-size:11px;color:var(--up);">✓ 正常</span>` : ''}
+      </div>
+    </div>`;
+  });
+
+  wall.innerHTML = `<div class="anchor-wall">${cards.join('')}</div>`;
+  wall.querySelectorAll('.anchor-wall-card').forEach(card => {
+    card.addEventListener('click', () => {
+      switchDashView('single');
+      document.getElementById('dash-anchor').value = card.dataset.id;
+      renderDashboard();
+    });
+  });
+}
+
+document.getElementById('dash-view-toggle').addEventListener('click', () => {
+  switchDashView(dashViewMode === 'single' ? 'cards' : 'single');
+});
+
+// ============================================================
+// #5 近 30 天趋势图
+// ============================================================
+function renderTrendCharts(anchorId, endDate) {
+  const container = document.getElementById('dash-trend-charts');
+  if (!container || !anchorId || !endDate) { if (container) container.innerHTML = ''; return; }
+
+  const chartHtml = METRICS.map(m => {
+    const series = getMetricSeries(anchorId, endDate, 30, m);
+    const nonZero = series.filter(v => v > 0);
+    const maxVal = nonZero.length ? Math.max(...nonZero) : 0;
+    const minVal = nonZero.length ? Math.min(...nonZero) : 0;
+    const last = series[series.length - 1];
+    const prev = series[series.length - 2] || 0;
+    const dir = compareValues(prev, last);
+    const lineColor = dir === 'up' ? 'var(--up)' : dir === 'down' ? 'var(--down)' : 'var(--accent)';
+    const startDate = addDays(endDate, -29);
+
+    return `<div class="trend-card">
+      <div style="display:flex; justify-content:space-between; align-items:baseline;">
+        <div style="font-size:12px; font-weight:600; color:var(--text-1);">${m}</div>
+        <div style="font-size:18px; font-weight:700; font-family:'JetBrains Mono',monospace; color:${lineColor};">${fmtNum(last)}</div>
+      </div>
+      <div class="spark-wrap">${renderSparkline(series, lineColor)}</div>
+      <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-3); font-family:'JetBrains Mono',monospace;">
+        <span>${startDate}</span>
+        <span>峰值 ${fmtNum(maxVal)}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="table-wrap" style="margin-top:16px;">
+      <div class="table-header">
+        <div class="table-title">📈 近 30 天趋势</div>
+        <div class="table-meta">${addDays(endDate, -29)} ~ ${endDate}</div>
+      </div>
+      <div class="trend-grid">${chartHtml}</div>
+    </div>`;
+}
+
+// ============================================================
+// #1 批量录入·快捷停播
+// ============================================================
+document.getElementById('bulk-mark-all-off').addEventListener('click', () => {
+  let count = 0;
+  document.querySelectorAll('#bulk-body tr').forEach(tr => {
+    if (tr.style.display === 'none') return;
+    const sel = tr.querySelector('select[data-metric="_status"]');
+    if (sel) { sel.value = 'off'; count++; }
+  });
+  toast(`已将 ${count} 位主播标记为停播`);
+});
+
+document.getElementById('bulk-mark-all-live').addEventListener('click', () => {
+  let count = 0;
+  document.querySelectorAll('#bulk-body tr').forEach(tr => {
+    if (tr.style.display === 'none') return;
+    const sel = tr.querySelector('select[data-metric="_status"]');
+    if (sel) { sel.value = 'live'; count++; }
+  });
+  toast(`已将 ${count} 位主播重置为正常开播`);
+});
+
+// ============================================================
+// #7 数据备份提醒
+// ============================================================
+const BACKUP_REMIND_DAYS = 7;
+const BACKUP_KEY = 'streamer_lastExportTime';
+
+function updateLastExportInfo() {
+  const el = document.getElementById('last-export-info');
+  if (!el) return;
+  const ts = localStorage.getItem(BACKUP_KEY);
+  if (!ts) {
+    el.textContent = '尚未导出过备份';
+    el.style.color = 'var(--warn)';
+  } else {
+    const days = Math.floor((Date.now() - Number(ts)) / 86400000);
+    const dateStr = new Date(Number(ts)).toLocaleDateString('zh-CN');
+    el.textContent = `上次导出备份：${dateStr}（${days} 天前）`;
+    el.style.color = days > BACKUP_REMIND_DAYS ? 'var(--warn)' : 'var(--text-2)';
+  }
+}
+
+function checkBackupReminder() {
+  const banner = document.getElementById('backup-reminder-banner');
+  if (!banner) return;
+  const ts = localStorage.getItem(BACKUP_KEY);
+  const daysSince = ts ? Math.floor((Date.now() - Number(ts)) / 86400000) : 999;
+  if (!ts || daysSince > BACKUP_REMIND_DAYS) {
+    const msg = ts ? `距上次数据备份已超过 ${daysSince} 天` : '您还没有导出过数据备份';
+    banner.style.display = 'block';
+    banner.innerHTML = `
+      <div class="alert-bar" style="background:var(--warn-bg); border-color:var(--warn); margin-bottom:16px;">
+        <div class="alert-bar-icon">💾</div>
+        <div class="alert-bar-text">
+          <strong>${msg}</strong>，建议定期导出 JSON 备份，避免因清除浏览器数据丢失记录
+        </div>
+        <button class="btn btn-sm" id="reminder-goto-export" style="white-space:nowrap;">去导出</button>
+        <button class="btn-ghost btn btn-sm" id="reminder-dismiss" style="white-space:nowrap; margin-left:6px;">稍后提醒</button>
+      </div>`;
+    document.getElementById('reminder-goto-export').addEventListener('click', () => {
+      document.getElementById('export-data').click();
+    });
+    document.getElementById('reminder-dismiss').addEventListener('click', () => {
+      banner.style.display = 'none';
+    });
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+// ============================================================
+// #6 周报 Word 生成
+// ============================================================
+async function generateWeeklyReport() {
+  if (!window.docx) { toast('Word 导出库未加载，请稍候再试', 'error'); return; }
+  const rawDate = document.getElementById('weekly-date').value;
+  if (!rawDate) { toast('请先选择周期', 'error'); return; }
+  const monday = getMonday(rawDate);
+  const sunday = addDays(monday, 6);
+  const lastMonday = addDays(monday, -7);
+  const D = window.docx;
+
+  const children = [];
+
+  // 标题
+  children.push(new D.Paragraph({
+    alignment: D.AlignmentType.CENTER,
+    spacing: { after: 80 },
+    children: [dxText(`运营周报`, { bold: true, size: 40, color: COLOR_HEADER })]
+  }));
+  children.push(new D.Paragraph({
+    alignment: D.AlignmentType.CENTER,
+    spacing: { after: 300 },
+    children: [dxText(`${monday} ~ ${sunday}`, { size: 22, color: COLOR_NEUTRAL })]
+  }));
+
+  // ── 第一节：本周各主播指标汇总排名 ──
+  children.push(new D.Paragraph({
+    spacing: { before: 200, after: 100 },
+    children: [dxText('一、本周指标汇总排名', { bold: true, size: 28, color: COLOR_HEADER })]
+  }));
+
+  const anchorRows = state.anchors.map(a => {
+    const weekData = {};
+    METRICS.forEach(m => { weekData[m] = getWeekMetric(monday, a.id, m); });
+    const health = calcHealth('wow', a.id, monday);
+    return { anchor: a, weekData, health };
+  }).sort((a, b) => (b.health.score || 0) - (a.health.score || 0));
+
+  const rankHeaderRow = new D.TableRow({
+    tableHeader: true,
+    children: [
+      dxHeaderCell('排名'),
+      dxHeaderCell('主播'),
+      dxHeaderCell('健康度'),
+      ...METRICS.map(m => dxHeaderCell(m + (AVG_METRICS.has(m) ? '(均)' : '')))
+    ]
+  });
+  const rankRows = anchorRows.map((r, idx) => new D.TableRow({
+    children: [
+      dxCell(`#${idx + 1}`, { align: D.AlignmentType.CENTER }),
+      dxCell(r.anchor.name, { bold: true }),
+      dxCell(r.health.score !== null ? String(r.health.score) : '—',
+        { align: D.AlignmentType.CENTER,
+          color: r.health.level === 'excellent' ? COLOR_UP
+               : r.health.level === 'good' ? '58A6FF'
+               : r.health.level === 'warn' ? 'F0883E' : COLOR_DOWN,
+          bold: true }),
+      ...METRICS.map(m => dxCell(fmtNum(r.weekData[m]),
+        { align: D.AlignmentType.RIGHT }))
+    ]
+  }));
+  children.push(new D.Table({
+    rows: [rankHeaderRow, ...rankRows],
+    width: { size: 100, type: D.WidthType.PERCENTAGE }
+  }));
+
+  // ── 第二节：下滑主播重点关注 ──
+  children.push(new D.Paragraph({
+    spacing: { before: 300, after: 100 },
+    children: [dxText('二、下滑指标重点关注', { bold: true, size: 28, color: COLOR_HEADER })]
+  }));
+
+  const declineItems = [];
+  state.anchors.forEach(a => {
+    METRICS.forEach(m => {
+      const curr = getWeekMetric(monday, a.id, m);
+      const prev = getWeekMetric(lastMonday, a.id, m);
+      const dir = compareValues(prev, curr);
+      const al = alertLevel(prev, curr);
+      if (dir === 'down') {
+        declineItems.push({ anchor: a, metric: m, curr, prev, pct: fmtPct(prev, curr), level: al });
+      }
+    });
+  }).sort ? null : null;
+  declineItems.sort((a, b) => {
+    const levelOrder = { alert: 0, warn: 1, neutral: 2 };
+    return (levelOrder[a.level] || 2) - (levelOrder[b.level] || 2);
+  });
+
+  if (declineItems.length === 0) {
+    children.push(new D.Paragraph({
+      children: [dxText('本周所有主播各项指标均未出现下滑，整体表现良好。', { color: COLOR_UP })]
+    }));
+  } else {
+    const dlHeaderRow = new D.TableRow({
+      tableHeader: true,
+      children: ['主播', '指标', '上周', '本周', '变化', '程度'].map(t => dxHeaderCell(t))
+    });
+    const dlRows = declineItems.map(i => new D.TableRow({
+      children: [
+        dxCell(i.anchor.name, { bold: true }),
+        dxCell(i.metric),
+        dxCell(fmtNum(i.prev), { align: D.AlignmentType.RIGHT }),
+        dxCell(fmtNum(i.curr), { align: D.AlignmentType.RIGHT }),
+        dxCell(i.pct, { align: D.AlignmentType.RIGHT, color: COLOR_DOWN, bold: true }),
+        dxCell(i.level === 'alert' ? '⚠ 异常' : i.level === 'warn' ? '! 警告' : '↓ 下滑',
+          { color: i.level === 'alert' ? COLOR_DOWN : i.level === 'warn' ? 'F0883E' : COLOR_NEUTRAL })
+      ]
+    }));
+    children.push(new D.Table({
+      rows: [dlHeaderRow, ...dlRows],
+      width: { size: 100, type: D.WidthType.PERCENTAGE }
+    }));
+  }
+
+  // ── 第三节：未结复盘项 ──
+  children.push(new D.Paragraph({
+    spacing: { before: 300, after: 100 },
+    children: [dxText('三、待跟进复盘事项', { bold: true, size: 28, color: COLOR_HEADER })]
+  }));
+
+  const pendingReviews = Object.entries(state.reviews)
+    .filter(([, v]) => v.text && v.status !== 'done')
+    .map(([k, v]) => {
+      const parts = k.split('::');
+      const anchor = state.anchors.find(a => a.id === parts[3]);
+      return { type: parts[1], date: parts[2], metric: parts[4],
+               anchorName: anchor ? anchor.name : '已删除',
+               text: v.text, status: v.status };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  if (pendingReviews.length === 0) {
+    children.push(new D.Paragraph({
+      children: [dxText('暂无待跟进的复盘事项。', { color: COLOR_UP })]
+    }));
+  } else {
+    const rvHeaderRow = new D.TableRow({
+      tableHeader: true,
+      children: ['主播', '日期', '类型', '指标', '状态', '复盘内容'].map(t => dxHeaderCell(t))
+    });
+    const rvRows = pendingReviews.map(r => new D.TableRow({
+      children: [
+        dxCell(r.anchorName, { bold: true }),
+        dxCell(r.date),
+        dxCell(r.type === 'daily' ? '日环比' : '周环比'),
+        dxCell(r.metric),
+        dxCell(r.status === 'todo' ? '待跟进' : '进行中',
+          { color: r.status === 'todo' ? 'F0883E' : '58A6FF' }),
+        dxCell(r.text)
+      ]
+    }));
+    children.push(new D.Table({
+      rows: [rvHeaderRow, ...rvRows],
+      width: { size: 100, type: D.WidthType.PERCENTAGE }
+    }));
+  }
+
+  // 生成时间戳
+  const now = new Date();
+  const tsStr = `${fmtDate(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')} 生成`;
+  children.push(new D.Paragraph({
+    spacing: { before: 300 },
+    alignment: D.AlignmentType.RIGHT,
+    children: [dxText(tsStr, { size: 16, color: '888888' })]
+  }));
+
+  await generateWord(`运营周报 ${monday}~${sunday}`, [children], `周报_${monday}.docx`);
+}
+
+document.getElementById('weekly-report').addEventListener('click', generateWeeklyReport);
+
+// ============================================================
+// Word 导出
+// ============================================================
+function getExportAnchors(scope, currentAnchorId, brokerId) {
+  if (scope === 'all') return state.anchors;
+  if (scope === 'broker') {
+    if (!brokerId) { toast('请先选择经纪人', 'error'); return null; }
+    const broker = state.brokers.find(b => b.id === brokerId);
+    if (!broker) { toast('经纪人不存在', 'error'); return null; }
+    const anchors = state.anchors.filter(a => a.brokerId === brokerId);
+    if (anchors.length === 0) { toast(`${broker.name} 名下没有主播`, 'error'); return null; }
+    return anchors;
+  }
+  // current
+  return state.anchors.filter(a => a.id === currentAnchorId);
+}
+
+// 颜色（docx 用 hex 不带 #）
+const COLOR_UP = '3FB950';
+const COLOR_DOWN = 'F85149';
+const COLOR_NEUTRAL = '6E7A8A';
+const COLOR_HEADER = '1F4E78';
+const COLOR_HEADER_BG = 'D9E1F2';
+const COLOR_OFF_BG = 'F0F0F0';
+const COLOR_TEXT = '24292F';
+
+// 文本助手：构造彩色加粗文字
+function dxText(text, opts = {}) {
+  const D = window.docx;
+  return new D.TextRun({
+    text: String(text),
+    bold: opts.bold || false,
+    color: opts.color || COLOR_TEXT,
+    size: opts.size || 20,  // half-points; 20 = 10pt
+    font: '微软雅黑'
+  });
+}
+
+// 构造表头单元格
+function dxHeaderCell(text, width) {
+  const D = window.docx;
+  return new D.TableCell({
+    width: width ? { size: width, type: D.WidthType.DXA } : undefined,
+    shading: { fill: COLOR_HEADER_BG, type: D.ShadingType.CLEAR },
+    children: [new D.Paragraph({
+      alignment: D.AlignmentType.CENTER,
+      children: [dxText(text, { bold: true, color: COLOR_HEADER, size: 20 })]
+    })]
+  });
+}
+
+// 构造数据单元格
+function dxCell(text, opts = {}) {
+  const D = window.docx;
+  const shading = opts.shadeOff ? { fill: COLOR_OFF_BG, type: D.ShadingType.CLEAR } : undefined;
+  return new D.TableCell({
+    shading,
+    children: [new D.Paragraph({
+      alignment: opts.align || D.AlignmentType.LEFT,
+      children: [dxText(text, opts)]
+    })]
+  });
+}
+
+// 单个主播日环比/周环比的表格 + 复盘
+function buildAnchorSection(period, anchor, date) {
+  const D = window.docx;
+  const elements = [];
+
+  // 副标题（主播名 + 日期范围）
+  let subTitle;
+  if (period === 'dod') {
+    subTitle = `${anchor.name}${anchor.douyinId ? ' (@' + anchor.douyinId + ')' : ''} · ${date} vs ${addDays(date, -1)}`;
+  } else {
+    const monday = getMonday(date);
+    const lastMonday = addDays(monday, -7);
+    subTitle = `${anchor.name}${anchor.douyinId ? ' (@' + anchor.douyinId + ')' : ''} · ${monday}~${addDays(monday, 6)} vs ${lastMonday}~${addDays(lastMonday, 6)}`;
+  }
+
+  elements.push(new D.Paragraph({
+    spacing: { before: 200, after: 100 },
+    children: [dxText(subTitle, { bold: true, size: 26, color: COLOR_HEADER })]
+  }));
+
+  // 经纪人
+  const broker = state.brokers.find(b => b.id === anchor.brokerId);
+  if (broker) {
+    elements.push(new D.Paragraph({
+      children: [dxText(`经纪人：${broker.name}`, { color: COLOR_NEUTRAL, size: 18 })]
+    }));
+  }
+
+  // 状态提醒
+  let statusNote = '';
+  if (period === 'dod') {
+    const todayStatus = getStatus(date, anchor.id);
+    const yStatus = getStatus(addDays(date, -1), anchor.id);
+    if (todayStatus && todayStatus !== 'live') statusNote += `今日：${STREAM_STATUS[todayStatus].label}。`;
+    if (yStatus && yStatus !== 'live') statusNote += `昨日：${STREAM_STATUS[yStatus].label}，环比对比${yStatus === 'off' ? '不适用' : '仅供参考'}。`;
+  } else {
+    let off = 0;
+    for (let i = 0; i < 7; i++) if (isOffDay(addDays(getMonday(date), i), anchor.id)) off++;
+    if (off > 0) statusNote += `本周有 ${off} 天停播。`;
+  }
+  if (statusNote) {
+    elements.push(new D.Paragraph({
+      children: [dxText('⚠️ ' + statusNote, { color: COLOR_DOWN, size: 18 })]
+    }));
+  }
+
+  // 数据表
+  const rows = [];
+  rows.push(new D.TableRow({
+    tableHeader: true,
+    children: [
+      dxHeaderCell('指标'),
+      dxHeaderCell(period === 'dod' ? '昨日' : '上周'),
+      dxHeaderCell(period === 'dod' ? '今日' : '本周'),
+      dxHeaderCell('变化量'),
+      dxHeaderCell('环比'),
+      dxHeaderCell('趋势')
+    ]
+  }));
+
+  const declines = [];
+
+  METRICS.forEach(m => {
+    let curr, prev;
+    if (period === 'dod') {
+      curr = getMetric(date, anchor.id, m);
+      prev = getMetric(addDays(date, -1), anchor.id, m);
+    } else {
+      const monday = getMonday(date);
+      curr = getWeekMetric(monday, anchor.id, m);
+      prev = getWeekMetric(addDays(monday, -7), anchor.id, m);
+    }
+    const diff = curr - prev;
+    const dir = compareValues(prev, curr);
+    const color = dir === 'up' ? COLOR_UP : dir === 'down' ? COLOR_DOWN : COLOR_NEUTRAL;
+    const arrow = dir === 'up' ? '↑ 上升' : dir === 'down' ? '↓ 下降' : '— 持平';
+    const aggLabel = AVG_METRICS.has(m) && period === 'wow' ? ' (周均)' : (period === 'wow' ? ' (累计)' : '');
+    const pctStr = fmtPct(prev, curr);
+
+    if (dir === 'down') declines.push({ metric: m, prev, curr, diff, pctStr });
+
+    rows.push(new D.TableRow({
+      children: [
+        dxCell(m + aggLabel, { bold: true }),
+        dxCell(fmtNum(prev), { align: D.AlignmentType.RIGHT }),
+        dxCell(fmtNum(curr), { align: D.AlignmentType.RIGHT, bold: true }),
+        dxCell(fmtChange(diff), { align: D.AlignmentType.RIGHT, color, bold: true }),
+        dxCell(pctStr, { align: D.AlignmentType.RIGHT, color, bold: true, size: 22 }),
+        dxCell(arrow, { align: D.AlignmentType.CENTER, color, bold: true })
+      ]
+    }));
+  });
+
+  elements.push(new D.Table({
+    rows,
+    width: { size: 100, type: D.WidthType.PERCENTAGE }
+  }));
+
+  // 健康度
+  const health = calcHealth(period, anchor.id, date);
+  if (health.score !== null) {
+    const lvColor = health.level === 'excellent' ? COLOR_UP
+                  : health.level === 'good' ? '58A6FF'
+                  : health.level === 'warn' ? 'F0883E'
+                  : COLOR_DOWN;
+    elements.push(new D.Paragraph({
+      spacing: { before: 200 },
+      children: [
+        dxText('数据健康度评分：', { bold: true }),
+        dxText(`${health.score} 分（${health.label}）`, { bold: true, color: lvColor, size: 24 })
+      ]
+    }));
+  } else if (health.reason === 'off') {
+    elements.push(new D.Paragraph({
+      spacing: { before: 200 },
+      children: [dxText('数据健康度评分：停播日不评分', { color: COLOR_NEUTRAL, bold: true })]
+    }));
+  }
+
+  // 复盘
+  if (declines.length > 0) {
+    elements.push(new D.Paragraph({
+      spacing: { before: 300, after: 100 },
+      border: { bottom: { color: COLOR_DOWN, size: 8, style: 'single' } },
+      children: [dxText(`📋 复盘提升 · ${declines.length} 项下滑指标重点跟进`, { bold: true, size: 24, color: COLOR_DOWN })]
+    }));
+
+    declines.forEach(d => {
+      const reviewType = period === 'dod' ? 'daily' : (period === 'wow' ? 'weekly' : null);
+      const refDate = period === 'wow' ? getMonday(date) : date;
+      const key = `review::${reviewType}::${refDate}::${anchor.id}::${d.metric}`;
+      const review = state.reviews[key] || { text: '', status: 'todo' };
+      const statusLabel = { todo: '🟡 待跟进', doing: '🔵 进行中', done: '🟢 已解决' }[review.status] || review.status;
+
+      // 指标标题行
+      elements.push(new D.Paragraph({
+        spacing: { before: 200, after: 60 },
+        children: [
+          dxText(`▼ ${d.metric}  `, { bold: true, size: 22 }),
+          dxText(d.pctStr + '  ', { bold: true, color: COLOR_DOWN, size: 22 }),
+          dxText(`${fmtNum(d.prev)} → ${fmtNum(d.curr)}  `, { color: COLOR_NEUTRAL, size: 18 }),
+          dxText('[' + statusLabel + ']', { color: COLOR_NEUTRAL, size: 18 })
+        ]
+      }));
+      // 复盘文本
+      elements.push(new D.Paragraph({
+        indent: { left: 360 },
+        spacing: { after: 100 },
+        children: [
+          dxText(review.text || '（尚未填写复盘记录）', {
+            color: review.text ? COLOR_TEXT : COLOR_NEUTRAL,
+            size: 20
+          })
+        ]
+      }));
+    });
+  } else {
+    elements.push(new D.Paragraph({
+      spacing: { before: 200 },
+      children: [dxText('✓ 本期所有指标均未下滑，无需复盘', { color: COLOR_UP, bold: true })]
+    }));
+  }
+
+  return elements;
+}
+
+async function generateWord(title, sections, filename) {
+  if (!window.docx) {
+    toast('Word 导出库未加载完成，请稍候再试', 'error');
+    return;
+  }
+  const D = window.docx;
+
+  const children = [];
+  // 大标题
+  children.push(new D.Paragraph({
+    alignment: D.AlignmentType.CENTER,
+    spacing: { after: 100 },
+    children: [dxText(title, { bold: true, size: 36, color: COLOR_HEADER })]
+  }));
+  // 生成时间
+  const now = new Date();
+  const tsStr = `${fmtDate(now)} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  children.push(new D.Paragraph({
+    alignment: D.AlignmentType.CENTER,
+    spacing: { after: 300 },
+    children: [dxText('生成时间：' + tsStr, { color: COLOR_NEUTRAL, size: 18 })]
+  }));
+
+  sections.forEach((sec, i) => {
+    children.push(...sec);
+    if (i < sections.length - 1) {
+      children.push(new D.Paragraph({
+        children: [new D.PageBreak()]
+      }));
+    }
+  });
+
+  const doc = new D.Document({
+    creator: '主播数据环比中心',
+    styles: {
+      default: { document: { run: { font: '微软雅黑' } } }
+    },
+    sections: [{ children }]
+  });
+
+  try {
+    const blob = await D.Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Word 已生成');
+  } catch (e) {
+    console.error(e);
+    toast('生成失败：' + e.message, 'error');
+  }
+}
+
+async function exportDailyWord() {
+  const scope = document.getElementById('daily-export-scope').value;
+  const currentId = document.getElementById('daily-anchor').value;
+  const date = document.getElementById('daily-date').value;
+  const brokerId = document.getElementById('daily-export-broker').value;
+  const anchors = getExportAnchors(scope, currentId, brokerId);
+  if (!anchors || anchors.length === 0) return;
+
+  const sections = anchors.map(a => buildAnchorSection('dod', a, date));
+  const title = `日环比分析报告 · ${date}`;
+  const scopeTag = scope === 'all' ? '全部主播' : scope === 'broker' ? (state.brokers.find(b => b.id === brokerId)?.name || '经纪人') : (anchors[0]?.name || '主播');
+  const fname = `日环比_${date}_${scopeTag}.docx`;
+  await generateWord(title, sections, fname);
+}
+
+async function exportWeeklyWord() {
+  const scope = document.getElementById('weekly-export-scope').value;
+  const currentId = document.getElementById('weekly-anchor').value;
+  const date = document.getElementById('weekly-date').value;
+  const monday = getMonday(date);
+  const brokerId = document.getElementById('weekly-export-broker').value;
+  const anchors = getExportAnchors(scope, currentId, brokerId);
+  if (!anchors || anchors.length === 0) return;
+
+  const sections = anchors.map(a => buildAnchorSection('wow', a, monday));
+  const title = `周环比分析报告 · ${monday} ~ ${addDays(monday, 6)}`;
+  const scopeTag = scope === 'all' ? '全部主播' : scope === 'broker' ? (state.brokers.find(b => b.id === brokerId)?.name || '经纪人') : (anchors[0]?.name || '主播');
+  const fname = `周环比_${monday}_${scopeTag}.docx`;
+  await generateWord(title, sections, fname);
+}
+
+async function exportDashboardWord() {
+  const period = document.getElementById('dash-period').value;
+  const date = document.getElementById('dash-date').value;
+  const currentId = document.getElementById('dash-anchor').value;
+  const brokerFilter = document.getElementById('dash-broker-filter').value;
+  const scope = document.getElementById('dash-export-scope').value;
+
+  let anchors;
+  if (scope === 'broker') {
+    if (brokerFilter === 'all' || brokerFilter === '') {
+      toast('请先在上方选择一个经纪人，再用"当前经纪人"导出', 'error');
+      return;
+    }
+    anchors = state.anchors.filter(a => a.brokerId === brokerFilter);
+    if (anchors.length === 0) { toast('该经纪人名下没有主播', 'error'); return; }
+  } else if (scope === 'all') {
+    anchors = state.anchors;
+  } else {
+    anchors = state.anchors.filter(a => a.id === currentId);
+  }
+  if (anchors.length === 0) { toast('没有可导出的主播', 'error'); return; }
+
+  const sections = anchors.map(a => buildAnchorSection(period, a, date));
+  const periodLabel = period === 'dod' ? '日环比' : '周环比';
+  const title = `总览报告 · ${periodLabel} · ${date}`;
+  const scopeTag = scope === 'all' ? '全部主播' : scope === 'broker' ? (state.brokers.find(b => b.id === brokerFilter)?.name || '经纪人') : (anchors[0]?.name || '主播');
+  const fname = `总览_${periodLabel}_${date}_${scopeTag}.docx`;
+  await generateWord(title, sections, fname);
+}
+
+// 控件事件
+['dash-anchor', 'dash-date'].forEach(id =>
+  document.getElementById(id).addEventListener('change', renderDashboard));
+['daily-anchor', 'daily-date'].forEach(id =>
+  document.getElementById(id).addEventListener('change', renderDaily));
+['weekly-anchor', 'weekly-date'].forEach(id =>
+  document.getElementById(id).addEventListener('change', renderWeekly));
+['cmp-period', 'cmp-date', 'cmp-metric'].forEach(id =>
+  document.getElementById(id).addEventListener('change', renderCompare));
+
+// 经纪人筛选
+document.getElementById('dash-broker-filter').addEventListener('change', () => {
+  populateAnchorSelects();
+  renderDashboard();
+});
+document.getElementById('cmp-broker-filter').addEventListener('change', renderCompare);
+
+// 日环比 — 经纪人筛选 + 抖音号搜索
+document.getElementById('daily-broker-filter').addEventListener('change', () => {
+  populateAnchorSelects();
+  renderDaily();
+});
+document.getElementById('daily-douyin-search').addEventListener('input', () => {
+  populateAnchorSelects();
+  renderDaily();
+});
+
+// 周环比 — 经纪人筛选 + 抖音号搜索
+document.getElementById('weekly-broker-filter').addEventListener('change', () => {
+  populateAnchorSelects();
+  renderWeekly();
+});
+document.getElementById('weekly-douyin-search').addEventListener('input', () => {
+  populateAnchorSelects();
+  renderWeekly();
+});
+
+// 周环比：周选择器、维度切换、快捷
+document.getElementById('weekly-week').addEventListener('change', (e) => {
+  const wk = e.target.value;  // 形如 "2025-W03"
+  if (!wk) return;
+  const monday = isoWeekToMonday(wk);
+  document.getElementById('weekly-date').value = monday;
+  renderWeekly();
+});
+document.getElementById('weekly-quick').addEventListener('change', (e) => {
+  const today = new Date();
+  const thisMonday = getMonday(fmtDate(today));
+  let m;
+  if (e.target.value === 'this') m = thisMonday;
+  else if (e.target.value === 'last') m = addDays(thisMonday, -7);
+  else m = addDays(thisMonday, -14);
+  document.getElementById('weekly-date').value = m;
+  document.getElementById('weekly-week').value = mondayToIsoWeek(m);
+  renderWeekly();
+});
+
+// 总览维度切换：日/周模式切换控件显示
+function applyDashPeriodMode() {
+  const period = document.getElementById('dash-period').value;
+  const dateCtrl = document.getElementById('dash-date-control');
+  const weekCtrl = document.getElementById('dash-week-control');
+  const quickCtrl = document.getElementById('dash-quick-control');
+  if (period === 'wow') {
+    dateCtrl.style.display = 'none';
+    weekCtrl.style.display = '';
+    quickCtrl.style.display = '';
+    // 同步 dash-date 到本周一（renderDashboard 用 dash-date 计算）
+    const today = fmtDate(new Date());
+    const monday = getMonday(today);
+    document.getElementById('dash-date').value = monday;
+    document.getElementById('dash-week').value = mondayToIsoWeek(monday);
+    document.getElementById('dash-quick').value = 'this';
+  } else {
+    dateCtrl.style.display = '';
+    weekCtrl.style.display = 'none';
+    quickCtrl.style.display = 'none';
+    document.getElementById('dash-date').value = fmtDate(new Date());
+  }
+}
+
+document.getElementById('dash-period').addEventListener('change', () => {
+  applyDashPeriodMode();
+  renderDashboard();
+});
+
+// 总览周选择
+document.getElementById('dash-week').addEventListener('change', (e) => {
+  const wk = e.target.value;
+  if (!wk) return;
+  const monday = isoWeekToMonday(wk);
+  document.getElementById('dash-date').value = monday;
+  renderDashboard();
+});
+document.getElementById('dash-quick').addEventListener('change', (e) => {
+  const today = new Date();
+  const thisMonday = getMonday(fmtDate(today));
+  let m;
+  if (e.target.value === 'this') m = thisMonday;
+  else if (e.target.value === 'last') m = addDays(thisMonday, -7);
+  else m = addDays(thisMonday, -14);
+  document.getElementById('dash-date').value = m;
+  document.getElementById('dash-week').value = mondayToIsoWeek(m);
+  renderDashboard();
+});
+
+// 导出按钮
+document.getElementById('dash-export').addEventListener('click', () => exportDashboardWord());
+document.getElementById('daily-export').addEventListener('click', () => exportDailyWord());
+document.getElementById('weekly-export').addEventListener('click', () => exportWeeklyWord());
+
+// 导出范围切换：显示/隐藏经纪人下拉
+document.getElementById('daily-export-scope').addEventListener('change', (e) => {
+  document.getElementById('daily-export-broker-control').style.display = e.target.value === 'broker' ? '' : 'none';
+});
+document.getElementById('weekly-export-scope').addEventListener('change', (e) => {
+  document.getElementById('weekly-export-broker-control').style.display = e.target.value === 'broker' ? '' : 'none';
+});
+
+// ============================================================
+// 权限
+// ============================================================
+let currentUser = null;
+let currentProfile = null;
+
+function isAdmin() { return currentProfile?.role === 'admin'; }
+
+function applyPermissions() {
+  const admin = isAdmin();
+  // 主播管理 / 经纪人管理 / 设置 写入按钮 — 非管理员隐藏
+  const adminOnlyIds = [
+    'save-new-broker', 'new-anchor-form-submit',
+    'clear-all', 'import-file',
+    'save-settings'
+  ];
+  adminOnlyIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.style.display = admin ? '' : 'none';
+      const label = el.closest('label');
+      if (label) label.style.display = admin ? '' : 'none';
+    }
+  });
+  // 主播删除 / 编辑按钮 — 通过 CSS 类批量控制
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = admin ? '' : 'none';
+  });
+  // 设置 tab 数据管理区说明
+  const settingsNote = document.getElementById('settings-permission-note');
+  if (settingsNote) settingsNote.style.display = admin ? 'none' : 'block';
+}
+
+// ============================================================
+// Auth UI
+// ============================================================
+function showLoginScreen() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('main-app').style.display = 'none';
+}
+
+function showApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-app').style.display = 'block';
+}
+
+function updateUserMenu() {
+  if (!currentUser) return;
+  const name = currentProfile?.display_name || currentUser.email;
+  const role = currentProfile?.role || 'operator';
+  document.getElementById('user-display-name').textContent = name;
+  const badge = document.getElementById('user-role-badge');
+  badge.textContent = role === 'admin' ? '管理员' : '运营';
+  badge.style.display = '';
+  badge.style.background = role === 'admin' ? 'rgba(63,185,80,.15)' : 'rgba(255,180,84,.15)';
+  badge.style.color = role === 'admin' ? 'var(--up)' : 'var(--accent)';
+  document.getElementById('user-info-row').textContent = currentUser.email;
+  document.getElementById('admin-panel-link').style.display = role === 'admin' ? 'block' : 'none';
+}
+
+// 登录
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const pw = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  if (!email || !pw) { errEl.textContent = '请填写邮箱和密码'; errEl.style.display = 'block'; return; }
+  document.getElementById('login-btn').textContent = '登录中…';
+  const { error } = await _sb.auth.signInWithPassword({ email, password: pw });
+  document.getElementById('login-btn').textContent = '登录';
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; }
+});
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+// 注册
+document.getElementById('show-register-btn').addEventListener('click', () => {
+  document.getElementById('register-modal').style.display = 'flex';
+});
+document.getElementById('reg-cancel').addEventListener('click', () => {
+  document.getElementById('register-modal').style.display = 'none';
+});
+document.getElementById('reg-submit').addEventListener('click', async () => {
+  const name = document.getElementById('reg-name').value.trim();
+  const email = document.getElementById('reg-email').value.trim();
+  const pw = document.getElementById('reg-password').value;
+  const errEl = document.getElementById('register-error');
+  errEl.style.display = 'none';
+  if (!name || !email || !pw) { errEl.textContent = '请填写所有字段'; errEl.style.display = 'block'; return; }
+  if (pw.length < 6) { errEl.textContent = '密码至少 6 位'; errEl.style.display = 'block'; return; }
+  document.getElementById('reg-submit').textContent = '注册中…';
+  const { error } = await _sb.auth.signUp({
+    email, password: pw,
+    options: { data: { display_name: name } }
+  });
+  document.getElementById('reg-submit').textContent = '注册';
+  if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
+  document.getElementById('register-modal').style.display = 'none';
+  toast('注册成功！请用刚注册的账号登录。');
+});
+
+// 登出
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  document.getElementById('user-dropdown').style.display = 'none';
+  await _sb.auth.signOut();
+});
+
+// 用户菜单
+document.getElementById('user-menu-btn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const dd = document.getElementById('user-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', () => {
+  const dd = document.getElementById('user-dropdown');
+  if (dd) dd.style.display = 'none';
+});
+
+// 管理员面板
+document.getElementById('open-admin-panel-btn').addEventListener('click', async () => {
+  document.getElementById('user-dropdown').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'flex';
+  await renderAdminUserList();
+});
+document.getElementById('close-admin-panel-btn').addEventListener('click', () => {
+  document.getElementById('admin-panel').style.display = 'none';
+});
+
+async function renderAdminUserList() {
+  const { data: profiles } = await _sb.from('profiles').select('*');
+  const { data: users } = await _sb.auth.admin?.listUsers?.() || { data: null };
+  const list = document.getElementById('admin-user-list');
+  if (!profiles) { list.innerHTML = '<div style="color:var(--text-2)">无法加载用户列表</div>'; return; }
+  list.innerHTML = profiles.map(p => {
+    const isMe = p.id === currentUser.id;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;
+      background:var(--bg-2);border-radius:8px;">
+      <div style="flex:1;">
+        <div style="font-weight:600;font-size:13px;">${escapeHtml(p.display_name || '（未设置名称）')}</div>
+        <div style="font-size:11px;color:var(--text-2);margin-top:2px;">
+          ${p.role === 'admin' ? '🛡️ 管理员' : '👤 运营'}${isMe ? ' · 我' : ''}
+        </div>
+      </div>
+      ${!isMe ? `<button class="btn btn-ghost" style="padding:4px 12px;font-size:12px;"
+        data-uid="${p.id}" data-role="${p.role}">
+        ${p.role === 'admin' ? '降为运营' : '升为管理员'}
+      </button>` : ''}
+    </div>`;
+  }).join('');
+  list.querySelectorAll('button[data-uid]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const newRole = btn.dataset.role === 'admin' ? 'operator' : 'admin';
+      await _sb.from('profiles').update({ role: newRole }).eq('id', btn.dataset.uid);
+      await renderAdminUserList();
+      toast(`已${newRole === 'admin' ? '升级' : '降级'}为${newRole === 'admin' ? '管理员' : '运营'}`);
+    });
+  });
+}
+
+// ============================================================
+// Realtime 实时同步
+// ============================================================
+function setupRealtime() {
+  _sb.channel('db-changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'anchors' }, async () => {
+      const { data } = await _sb.from('anchors').select('*').order('created_at');
+      state.anchors = (data || []).map(a => ({
+        id: a.id, name: a.name, douyinId: a.douyin_id || '',
+        platform: a.platform || '', brokerId: a.broker_id || ''
+      }));
+      populateAnchorSelects(); renderAll();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'brokers' }, async () => {
+      const { data } = await _sb.from('brokers').select('*').order('created_at');
+      state.brokers = (data || []).map(b => ({ id: b.id, name: b.name, note: b.note || '' }));
+      populateBrokerSelects(); renderAll();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'records' }, async (payload) => {
+      if (payload.eventType === 'DELETE') {
+        const { old: r } = payload;
+        delete state.records[`${r.date}::${r.anchor_id}`];
+      } else {
+        const r = payload.new;
+        state.records[`${r.date}::${r.anchor_id}`] = dbRowToRecord(r);
+      }
+      renderAll();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, async (payload) => {
+      if (payload.eventType === 'DELETE') {
+        delete state.reviews[payload.old.key];
+      } else {
+        const r = payload.new;
+        state.reviews[r.key] = { text: r.text, status: r.status };
+      }
+      renderReviewList(); updateReviewBadge();
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, async () => {
+      const { data } = await _sb.from('settings').select('*').eq('id', 1).single();
+      if (data) state.settings = { alertPct: data.alert_pct, warnPct: data.warn_pct, streakDays: data.streak_days };
+      loadSettingsUI();
+    })
+    .subscribe();
+}
+
+// ============================================================
+// 初始化
+// ============================================================
+(async function init() {
+  const today = fmtDate(new Date());
+  const monday = getMonday(today);
+  document.getElementById('today-label').textContent = `TODAY ${today}`;
+  document.getElementById('entry-date').value = today;
+  document.getElementById('dash-date').value = today;
+  document.getElementById('daily-date').value = today;
+  document.getElementById('weekly-date').value = monday;
+  document.getElementById('weekly-week').value = mondayToIsoWeek(monday);
+  document.getElementById('cmp-date').value = today;
+  document.getElementById('bulk-date').value = today;
+
+  // 监听 Auth 状态变化
+  _sb.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      currentUser = session.user;
+      // 拉取 profile
+      const { data: profile } = await _sb.from('profiles').select('*').eq('id', currentUser.id).single();
+      currentProfile = profile;
+      updateUserMenu();
+      showApp();
+      await loadState();
+      loadSettingsUI();
+      populateAnchorSelects();
+      applyDashPeriodMode();
+      applyPermissions();
+      renderAll();
+      updateLastExportInfo();
+      checkBackupReminder();
+      setupRealtime();
+    } else {
+      currentUser = null;
+      currentProfile = null;
+      showLoginScreen();
+    }
+  });
+
+  // 检查已有 session（页面刷新时）
+  const { data: { session } } = await _sb.auth.getSession();
+  if (!session) showLoginScreen();
+})();
+</script>
+
+</body>
+</html>
