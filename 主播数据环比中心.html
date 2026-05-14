@@ -2023,7 +2023,16 @@ td.metric-cell { font-weight: 600; color: var(--text-0); }
 const SUPABASE_URL  = 'https://hqawilbfwvrozmnnnspp.supabase.co';
 const SUPABASE_ANON = 'sb_publishable_mCT1CFmLXjVqKK-y8hTw1g_cSQgdOF8';
 // ============================================================
-const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+const _sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    storageKey: 'streamer-metrics-auth',
+    storage: window.localStorage,
+    flowType: 'implicit'
+  }
+});
 </script>
 <script>
 // ============================================================
@@ -2591,6 +2600,21 @@ function getMetricSeries(anchorId, endDate, days, metric) {
 // 渲染：总览
 // ============================================================
 function renderDashboard() {
+  // 无主播时显示引导提示
+  if (state.anchors.length === 0) {
+    const single = document.getElementById('dash-single-view');
+    if (single) single.innerHTML = `
+      <div style="text-align:center; padding:80px 20px; color:var(--text-2);">
+        <div style="font-size:48px; margin-bottom:16px;">📋</div>
+        <div style="font-size:18px; font-weight:600; color:var(--text-0); margin-bottom:8px;">还没有主播数据</div>
+        <div style="font-size:14px; margin-bottom:24px;">请先到「主播管理」页面添加主播，再录入数据</div>
+        <button class="btn" onclick="document.querySelector('[data-tab=anchors]').click()">去添加主播</button>
+      </div>`;
+    const wall = document.getElementById('dash-card-wall');
+    if (wall) wall.innerHTML = '';
+    return;
+  }
+
   const anchorId = document.getElementById('dash-anchor').value;
   const period = document.getElementById('dash-period').value;
   const date = document.getElementById('dash-date').value;
@@ -5170,15 +5194,19 @@ function showApp() {
 
 function updateUserMenu() {
   if (!currentUser) return;
-  const name = currentProfile?.display_name || currentUser.email;
+  const name = currentProfile?.display_name || currentUser.email.split('@')[0];
   const role = currentProfile?.role || 'operator';
   document.getElementById('user-display-name').textContent = name;
   const badge = document.getElementById('user-role-badge');
   badge.textContent = role === 'admin' ? '管理员' : '运营';
-  badge.style.display = '';
+  badge.style.display = 'inline-block';
   badge.style.background = role === 'admin' ? 'rgba(63,185,80,.15)' : 'rgba(255,180,84,.15)';
   badge.style.color = role === 'admin' ? 'var(--up)' : 'var(--accent)';
-  document.getElementById('user-info-row').textContent = currentUser.email;
+  const infoRow = document.getElementById('user-info-row');
+  if (infoRow) infoRow.innerHTML = `
+    <div style="font-weight:600;color:var(--text-0);margin-bottom:2px;">${escapeHtml(name)}</div>
+    <div style="font-size:11px;">${escapeHtml(currentUser.email)}</div>
+    <div style="font-size:11px;margin-top:2px;color:${role==='admin'?'var(--up)':'var(--accent)'};">${role==='admin'?'🛡️ 管理员':'👤 运营'}</div>`;
   document.getElementById('admin-panel-link').style.display = role === 'admin' ? 'block' : 'none';
 }
 
@@ -5342,35 +5370,50 @@ function setupRealtime() {
   document.getElementById('cmp-date').value = today;
   document.getElementById('bulk-date').value = today;
 
-  // 监听 Auth 状态变化
+  // 先检查已有 session（页面刷新时直接进入）
+  const { data: { session } } = await _sb.auth.getSession();
+  if (session?.user) {
+    await bootApp(session.user);
+  } else {
+    showLoginScreen();
+  }
+
+  // 监听后续登入/登出事件
   _sb.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      currentUser = session.user;
-      // 拉取 profile
-      const { data: profile } = await _sb.from('profiles').select('*').eq('id', currentUser.id).single();
-      currentProfile = profile;
-      updateUserMenu();
-      showApp();
-      await loadState();
-      loadSettingsUI();
-      populateAnchorSelects();
-      applyDashPeriodMode();
-      applyPermissions();
-      renderAll();
-      updateLastExportInfo();
-      checkBackupReminder();
-      setupRealtime();
-    } else {
+    if (event === 'SIGNED_IN' && session?.user) {
+      await bootApp(session.user);
+    } else if (event === 'SIGNED_OUT') {
       currentUser = null;
       currentProfile = null;
       showLoginScreen();
     }
   });
-
-  // 检查已有 session（页面刷新时）
-  const { data: { session } } = await _sb.auth.getSession();
-  if (!session) showLoginScreen();
 })();
+
+async function bootApp(user) {
+  currentUser = user;
+  try {
+    const { data: profile } = await _sb.from('profiles').select('*').eq('id', user.id).single();
+    currentProfile = profile;
+  } catch(e) {
+    currentProfile = null;
+  }
+  updateUserMenu();
+  showApp();
+  try {
+    await loadState();
+  } catch(e) {
+    console.error('loadState error:', e);
+  }
+  loadSettingsUI();
+  populateAnchorSelects();
+  applyDashPeriodMode();
+  applyPermissions();
+  renderAll();
+  updateLastExportInfo();
+  checkBackupReminder();
+  setupRealtime();
+}
 </script>
 
 </body>
